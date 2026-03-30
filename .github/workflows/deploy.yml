@@ -1,0 +1,43 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t kingdom-companion:${{ github.sha }} .
+
+      - name: Save Docker image
+        run: docker save kingdom-companion:${{ github.sha }} | gzip > image.tar.gz
+
+      - name: Copy image to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          source: "image.tar.gz,docker-compose.yml"
+          target: /opt/kingdom-companion
+
+      - name: Deploy on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          script: |
+            cd /opt/kingdom-companion
+            docker load < image.tar.gz
+            docker tag kingdom-companion:${{ github.sha }} kingdom-companion:latest
+            docker compose up -d --force-recreate app
+            docker exec -T $(docker compose ps -q app) npx prisma migrate deploy || true
+            rm -f image.tar.gz
