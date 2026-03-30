@@ -5,6 +5,9 @@ import { auth } from "@/lib/auth";
 import { notFound } from "next/navigation";
 import BibleBooksBlitz from "@/components/games/BibleBooksBlitz";
 import ScriptureMemoryMatch from "@/components/games/ScriptureMemoryMatch";
+import BibleWordSearch from "@/components/games/BibleWordSearch";
+import NameThatScripture from "@/components/games/NameThatScripture";
+import TheocraticTrivia from "@/components/games/TheocraticTrivia";
 
 export interface ContentPackData {
   vocabulary: string[];
@@ -25,6 +28,9 @@ export interface GameProps {
 const GAME_COMPONENTS: Record<string, React.ComponentType<GameProps>> = {
   "bible-books-blitz": BibleBooksBlitz,
   "scripture-memory-match": ScriptureMemoryMatch,
+  "bible-word-search": BibleWordSearch,
+  "name-that-scripture": NameThatScripture,
+  "theocratic-trivia": TheocraticTrivia,
 };
 
 export default async function GamePage({

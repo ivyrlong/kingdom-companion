@@ -12,17 +12,24 @@ const AGE_GROUP_LABELS: Record<string, string> = {
 
 export const metadata = { title: "Games | Kingdom Companion" };
 
-export default async function GamesPage() {
+export default async function GamesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ week?: string }>;
+}) {
+  const { week: weekParam } = await searchParams;
+  const weekOffset = parseInt(weekParam ?? "0", 10) || 0;
+
   // Evergreen games (engines without content packs — classic games)
   const games = await prisma.game.findMany({
     where: { isActive: true },
     orderBy: { title: "asc" },
   });
 
-  // This week's meeting prep game instances
+  // Calculate week range based on offset
   const now = new Date();
   const startOfWeek = new Date(now);
-  startOfWeek.setDate(now.getDate() - now.getDay() + 1); // Monday
+  startOfWeek.setDate(now.getDate() - now.getDay() + 1 + weekOffset * 7); // Monday + offset
   startOfWeek.setHours(0, 0, 0, 0);
   const endOfWeek = new Date(startOfWeek);
   endOfWeek.setDate(startOfWeek.getDate() + 6);
@@ -108,6 +115,13 @@ export default async function GamesPage() {
     description: inst.game.description,
   }));
 
+  // Format week label
+  const weekLabel = weekOffset === 0
+    ? "This Week"
+    : startOfWeek.toLocaleDateString("en-US", { month: "short", day: "numeric" }) +
+      " – " +
+      endOfWeek.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50 mb-8">
@@ -119,6 +133,8 @@ export default async function GamesPage() {
         daily={dailyCards}
         meetingPrep={prepCards}
         meetingLive={liveCards}
+        weekOffset={weekOffset}
+        weekLabel={weekLabel}
       />
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 interface GameCard {
   id: string;
@@ -17,6 +18,8 @@ interface GameTabsProps {
   daily: GameCard[];
   meetingPrep: GameCard[];
   meetingLive: GameCard[];
+  weekOffset: number;
+  weekLabel: string;
 }
 
 const TABS = [
@@ -41,7 +44,10 @@ export default function GameTabs({
   daily,
   meetingPrep,
   meetingLive,
+  weekOffset,
+  weekLabel,
 }: GameTabsProps) {
+  const router = useRouter();
   // Default to "Today" tab if daily games exist, otherwise evergreen
   const [activeTab, setActiveTab] = useState<TabKey>(
     daily.length > 0 ? "daily" : "evergreen"
@@ -55,6 +61,12 @@ export default function GameTabs({
   };
 
   const cards = tabData[activeTab];
+  const showWeekNav = activeTab === "prep" || activeTab === "live";
+
+  const navigateWeek = (direction: -1 | 1) => {
+    const newOffset = weekOffset + direction;
+    router.push(newOffset === 0 ? "/games" : `/games?week=${newOffset}`);
+  };
 
   return (
     <>
@@ -80,6 +92,37 @@ export default function GameTabs({
           );
         })}
       </div>
+
+      {/* Week navigation */}
+      {showWeekNav && (
+        <div className="flex items-center gap-4 mb-6">
+          <button
+            onClick={() => navigateWeek(-1)}
+            className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 transition"
+            aria-label="Previous week"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+          </button>
+          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            {weekLabel}
+          </span>
+          <button
+            onClick={() => navigateWeek(1)}
+            className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 transition"
+            aria-label="Next week"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+          {weekOffset !== 0 && (
+            <button
+              onClick={() => router.push("/games")}
+              className="text-xs text-teal-600 dark:text-teal-400 hover:underline"
+            >
+              Back to this week
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Cards */}
       {cards.length === 0 ? (
