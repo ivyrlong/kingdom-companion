@@ -8,6 +8,7 @@ import ScriptureMemoryMatch from "@/components/games/ScriptureMemoryMatch";
 import BibleWordSearch from "@/components/games/BibleWordSearch";
 import NameThatScripture from "@/components/games/NameThatScripture";
 import TheocraticTrivia from "@/components/games/TheocraticTrivia";
+import WhoAmI from "@/components/games/WhoAmI";
 
 export interface ContentPackData {
   vocabulary: string[];
@@ -31,6 +32,7 @@ const GAME_COMPONENTS: Record<string, React.ComponentType<GameProps>> = {
   "bible-word-search": BibleWordSearch,
   "name-that-scripture": NameThatScripture,
   "theocratic-trivia": TheocraticTrivia,
+  "who-am-i": WhoAmI,
 };
 
 export default async function GamePage({

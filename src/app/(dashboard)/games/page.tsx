@@ -26,13 +26,16 @@ export default async function GamesPage({
     orderBy: { title: "asc" },
   });
 
-  // Calculate week range based on offset
+  // Calculate week range based on offset.
+  // Use Date.UTC to construct midnight-UTC boundaries that match the
+  // "timestamp without time zone" values stored in PostgreSQL by Prisma.
   const now = new Date();
-  const startOfWeek = new Date(now);
-  startOfWeek.setDate(now.getDate() - now.getDay() + 1 + weekOffset * 7); // Monday + offset
-  startOfWeek.setHours(0, 0, 0, 0);
-  const endOfWeek = new Date(startOfWeek);
-  endOfWeek.setDate(startOfWeek.getDate() + 6);
+  const localDay = now.getDay(); // 0=Sun … 6=Sat
+  // On Sunday, treat it as end of the current Mon–Sun week (go back 6 days)
+  const mondayOffset = localDay === 0 ? -6 : 1 - localDay;
+  const mondayDate = now.getDate() + mondayOffset + weekOffset * 7;
+  const startOfWeek = new Date(Date.UTC(now.getFullYear(), now.getMonth(), mondayDate));
+  const endOfWeek = new Date(Date.UTC(now.getFullYear(), now.getMonth(), mondayDate + 6, 23, 59, 59, 999));
 
   const meetingPrepInstances = await prisma.gameInstance.findMany({
     where: {
@@ -60,11 +63,9 @@ export default async function GamesPage({
     include: { game: true, contentPack: { include: { meetingWeek: true } } },
   });
 
-  // Today's Daily Text game instances
-  const todayStart = new Date(now);
-  todayStart.setHours(0, 0, 0, 0);
-  const todayEnd = new Date(todayStart);
-  todayEnd.setDate(todayStart.getDate() + 1);
+  // Today's Daily Text game instances (UTC midnight boundaries)
+  const todayStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  const todayEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1));
 
   const dailyInstances = await prisma.gameInstance.findMany({
     where: {
@@ -118,9 +119,9 @@ export default async function GamesPage({
   // Format week label
   const weekLabel = weekOffset === 0
     ? "This Week"
-    : startOfWeek.toLocaleDateString("en-US", { month: "short", day: "numeric" }) +
+    : startOfWeek.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) +
       " – " +
-      endOfWeek.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      endOfWeek.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
