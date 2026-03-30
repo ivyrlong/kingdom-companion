@@ -41,12 +41,20 @@ export default async function AdminPage() {
         <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">
           Admin Dashboard
         </h1>
-        <Link
-          href="/admin/content"
-          className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg transition"
-        >
-          Content Manager
-        </Link>
+        <div className="flex gap-3">
+          <Link
+            href="/admin/daily-text"
+            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-lg transition"
+          >
+            Daily Text
+          </Link>
+          <Link
+            href="/admin/content"
+            className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg transition"
+          >
+            Content Manager
+          </Link>
+        </div>
       </div>
 
       {/* Stats */}

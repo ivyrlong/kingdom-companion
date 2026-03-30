@@ -110,13 +110,14 @@ model MeetingWeek {
   contentPacks ContentPack[]
 }
 
-// ContentPack = extracted material from an article or evergreen Bible topic.
+// ContentPack = extracted material from an article, daily text, or evergreen Bible topic.
 model ContentPack {
   id            String          @id @default(cuid())
-  title         String          // e.g. "WT Study - April 6" or "Evergreen: Creation"
+  title         String          // e.g. "WT Study - April 6" or "Daily Text - March 30"
   source        ContentSource
   context       GameContext      @default(EVERGREEN)
   sourceText    String?         // original pasted text (for reference)
+  date          DateTime?       // target date (for daily text) or null
   vocabulary    Json            // string[]
   scriptures    Json            // { reference: string, text: string }[]
   keyPeople     Json            // string[]
@@ -132,6 +133,7 @@ model ContentPack {
 
   @@index([context])
   @@index([meetingWeekId])
+  @@index([source, date])
 }
 
 // GameInstance = a specific playable combination of engine + content.
@@ -213,6 +215,7 @@ enum SessionStatus {
 enum ContentSource {
   WATCHTOWER   // Watchtower Study article
   OCLM         // Our Christian Life and Ministry workbook
+  DAILY_TEXT   // Daily Text (scripture + comment)
   EVERGREEN    // General Bible content (not tied to a week)
 }
 
@@ -220,4 +223,5 @@ enum GameContext {
   EVERGREEN       // Always available
   MEETING_PREP    // Preparation for upcoming meeting
   MEETING_LIVE    // Played during the meeting
+  DAILY           // Today's Daily Text games
 }

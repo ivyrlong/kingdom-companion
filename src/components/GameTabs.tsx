@@ -14,11 +14,13 @@ interface GameCard {
 
 interface GameTabsProps {
   evergreen: GameCard[];
+  daily: GameCard[];
   meetingPrep: GameCard[];
   meetingLive: GameCard[];
 }
 
 const TABS = [
+  { key: "daily", label: "Today" },
   { key: "evergreen", label: "Evergreen" },
   { key: "prep", label: "This Week" },
   { key: "live", label: "Meeting Live" },
@@ -26,32 +28,40 @@ const TABS = [
 
 type TabKey = (typeof TABS)[number]["key"];
 
+const EMPTY_MESSAGES: Record<TabKey, string> = {
+  daily:
+    "No daily text games today. An admin needs to publish today's Daily Text.",
+  evergreen: "No games available yet. Check back soon!",
+  prep: "No meeting preparation games this week. An admin needs to create content for this week.",
+  live: "No meeting live games this week. Check back before your next meeting!",
+};
+
 export default function GameTabs({
   evergreen,
+  daily,
   meetingPrep,
   meetingLive,
 }: GameTabsProps) {
-  const [activeTab, setActiveTab] = useState<TabKey>("evergreen");
+  // Default to "Today" tab if daily games exist, otherwise evergreen
+  const [activeTab, setActiveTab] = useState<TabKey>(
+    daily.length > 0 ? "daily" : "evergreen"
+  );
 
-  const cards =
-    activeTab === "evergreen"
-      ? evergreen
-      : activeTab === "prep"
-        ? meetingPrep
-        : meetingLive;
+  const tabData: Record<TabKey, GameCard[]> = {
+    daily,
+    evergreen,
+    prep: meetingPrep,
+    live: meetingLive,
+  };
+
+  const cards = tabData[activeTab];
 
   return (
     <>
       {/* Tabs */}
       <div className="flex gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1 mb-8 w-fit">
         {TABS.map((tab) => {
-          const count =
-            tab.key === "evergreen"
-              ? evergreen.length
-              : tab.key === "prep"
-                ? meetingPrep.length
-                : meetingLive.length;
-
+          const count = tabData[tab.key].length;
           return (
             <button
               key={tab.key}
@@ -75,11 +85,7 @@ export default function GameTabs({
       {cards.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-zinc-500 dark:text-zinc-400 text-lg">
-            {activeTab === "evergreen"
-              ? "No games available yet. Check back soon!"
-              : activeTab === "prep"
-                ? "No meeting preparation games this week. An admin needs to create content for this week."
-                : "No meeting live games this week. Check back before your next meeting!"}
+            {EMPTY_MESSAGES[activeTab]}
           </p>
         </div>
       ) : (

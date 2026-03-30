@@ -53,6 +53,24 @@ export default async function GamesPage() {
     include: { game: true, contentPack: { include: { meetingWeek: true } } },
   });
 
+  // Today's Daily Text game instances
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date(todayStart);
+  todayEnd.setDate(todayStart.getDate() + 1);
+
+  const dailyInstances = await prisma.gameInstance.findMany({
+    where: {
+      context: "DAILY",
+      isActive: true,
+      contentPack: {
+        source: "DAILY_TEXT",
+        date: { gte: todayStart, lt: todayEnd },
+      },
+    },
+    include: { game: true, contentPack: true },
+  });
+
   // Build data for tabs
   const evergreenCards = games.map((game) => ({
     id: game.id,
@@ -81,6 +99,15 @@ export default async function GamesPage() {
     description: inst.game.description,
   }));
 
+  const dailyCards = dailyInstances.map((inst) => ({
+    id: inst.id,
+    href: `/games/${inst.game.slug}?pack=${inst.contentPackId}`,
+    category: inst.game.category,
+    ageGroup: "Daily Text",
+    title: inst.title,
+    description: inst.game.description,
+  }));
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50 mb-8">
@@ -89,6 +116,7 @@ export default async function GamesPage() {
 
       <GameTabs
         evergreen={evergreenCards}
+        daily={dailyCards}
         meetingPrep={prepCards}
         meetingLive={liveCards}
       />

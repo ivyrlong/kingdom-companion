@@ -170,3 +170,39 @@ export function parseArticleText(text: string): ParsedContent {
     questions: extractQuestions(text),
   };
 }
+
+// ─── Daily Text Parse ──────────────────────────────────────────────────
+
+export interface ParsedDailyText {
+  vocabulary: string[];
+  keyPeople: string[];
+  themes: string[];
+  questions: string[];
+  keyPhrases: string[];
+}
+
+/**
+ * Parse a Daily Text entry (scripture + comment) into structured game content.
+ * Combines scripture text and comment for extraction.
+ */
+export function parseDailyText(
+  scriptureRef: string,
+  scriptureText: string,
+  comment: string
+): ParsedDailyText {
+  const combined = `${scriptureRef} ${scriptureText} ${comment}`;
+
+  return {
+    vocabulary: extractVocabulary(combined),
+    keyPeople: extractKeyPeople(combined),
+    themes: extractVocabulary(combined).slice(0, 3), // Top 3 vocab as themes
+    questions: extractQuestions(comment),
+    keyPhrases: [
+      // The scripture text itself is a key phrase
+      scriptureText.length > 80
+        ? scriptureText.slice(0, 77) + "..."
+        : scriptureText,
+      ...extractKeyPhrases(comment),
+    ],
+  };
+}
