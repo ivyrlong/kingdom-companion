@@ -80,6 +80,7 @@ model Profile {
   badges Badge[]
 }
 
+// Game = a game ENGINE (e.g. "Word Search", "Trivia"). The mechanic, not the content.
 model Game {
   id          String   @id @default(cuid())
   slug        String   @unique
@@ -92,8 +93,62 @@ model Game {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  instances    GameInstance[]
   gameSessions GameSession[]
   scores       Score[]
+}
+
+// MeetingWeek groups content for a specific week's meetings.
+model MeetingWeek {
+  id        String   @id @default(cuid())
+  weekOf    DateTime @unique // Monday of the target week
+  title     String   // e.g. "Week of April 6, 2026"
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contentPacks ContentPack[]
+}
+
+// ContentPack = extracted material from an article or evergreen Bible topic.
+model ContentPack {
+  id            String          @id @default(cuid())
+  title         String          // e.g. "WT Study - April 6" or "Evergreen: Creation"
+  source        ContentSource
+  context       GameContext      @default(EVERGREEN)
+  sourceText    String?         // original pasted text (for reference)
+  vocabulary    Json            // string[]
+  scriptures    Json            // { reference: string, text: string }[]
+  keyPeople     Json            // string[]
+  themes        Json            // string[]
+  questions     Json            // { question: string, answer: string, options?: string[] }[]
+  keyPhrases    Json            // string[] — for meeting bingo / tap games
+  meetingWeekId String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  meetingWeek MeetingWeek?   @relation(fields: [meetingWeekId], references: [id], onDelete: SetNull)
+  instances   GameInstance[]
+
+  @@index([context])
+  @@index([meetingWeekId])
+}
+
+// GameInstance = a specific playable combination of engine + content.
+model GameInstance {
+  id            String      @id @default(cuid())
+  gameId        String
+  contentPackId String
+  context       GameContext  @default(EVERGREEN)
+  title         String      // e.g. "Word Search — WT April 6"
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+
+  game        Game        @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  contentPack ContentPack @relation(fields: [contentPackId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, contentPackId])
+  @@index([context])
 }
 
 model GameSession {
@@ -153,4 +208,16 @@ enum SessionStatus {
   IN_PROGRESS
   COMPLETED
   ABANDONED
+}
+
+enum ContentSource {
+  WATCHTOWER   // Watchtower Study article
+  OCLM         // Our Christian Life and Ministry workbook
+  EVERGREEN    // General Bible content (not tied to a week)
+}
+
+enum GameContext {
+  EVERGREEN       // Always available
+  MEETING_PREP    // Preparation for upcoming meeting
+  MEETING_LIVE    // Played during the meeting
 }

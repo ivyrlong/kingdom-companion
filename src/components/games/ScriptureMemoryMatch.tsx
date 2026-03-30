@@ -2,12 +2,10 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useGameSession } from "@/hooks/useGameSession";
-import { getRandomPairs } from "@/lib/game-data/scripture-pairs";
+import { getRandomPairs, type ScripturePair } from "@/lib/game-data/scripture-pairs";
+import type { GameProps } from "@/app/(dashboard)/games/[slug]/page";
 
-interface Props {
-  gameId: string;
-  userId?: string;
-}
+type Props = GameProps;
 
 interface Card {
   id: number;
@@ -36,7 +34,7 @@ function shuffleCards(cards: Card[]): Card[] {
   return a;
 }
 
-export default function ScriptureMemoryMatch({ gameId, userId }: Props) {
+export default function ScriptureMemoryMatch({ gameId, userId, contentPack }: Props) {
   const { status, finalScore, startSession, endSession, reset } =
     useGameSession({ gameId, userId });
 
@@ -52,7 +50,15 @@ export default function ScriptureMemoryMatch({ gameId, userId }: Props) {
   const startGame = useCallback(
     async (count: PairCount) => {
       setPairCount(count);
-      const pairs = getRandomPairs(count);
+
+      // Use content pack scriptures if available, otherwise use defaults
+      let pairs: ScripturePair[];
+      if (contentPack?.scriptures && contentPack.scriptures.length >= count) {
+        const shuffled = [...contentPack.scriptures].sort(() => Math.random() - 0.5);
+        pairs = shuffled.slice(0, count);
+      } else {
+        pairs = getRandomPairs(count);
+      }
       let id = 0;
       const newCards: Card[] = [];
 
@@ -84,7 +90,7 @@ export default function ScriptureMemoryMatch({ gameId, userId }: Props) {
       setIsChecking(false);
       await startSession();
     },
-    [startSession]
+    [startSession, contentPack]
   );
 
   useEffect(() => {

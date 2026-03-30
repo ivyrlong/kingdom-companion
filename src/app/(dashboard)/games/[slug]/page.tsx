@@ -6,17 +6,36 @@ import { notFound } from "next/navigation";
 import BibleBooksBlitz from "@/components/games/BibleBooksBlitz";
 import ScriptureMemoryMatch from "@/components/games/ScriptureMemoryMatch";
 
-const GAME_COMPONENTS: Record<string, React.ComponentType<{ gameId: string; userId?: string }>> = {
+export interface ContentPackData {
+  vocabulary: string[];
+  scriptures: { reference: string; text: string }[];
+  keyPeople: string[];
+  themes: string[];
+  questions: { question: string; answer: string; options?: string[] }[];
+  keyPhrases: string[];
+}
+
+export interface GameProps {
+  gameId: string;
+  userId?: string;
+  contentPack?: ContentPackData;
+  contentPackTitle?: string;
+}
+
+const GAME_COMPONENTS: Record<string, React.ComponentType<GameProps>> = {
   "bible-books-blitz": BibleBooksBlitz,
   "scripture-memory-match": ScriptureMemoryMatch,
 };
 
 export default async function GamePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ pack?: string }>;
 }) {
   const { slug } = await params;
+  const { pack: packId } = await searchParams;
 
   const game = await prisma.game.findUnique({
     where: { slug },
@@ -25,6 +44,28 @@ export default async function GamePage({
   if (!game || !game.isActive) notFound();
 
   const session = await auth();
+
+  // Load content pack if specified
+  let contentPack: ContentPackData | undefined;
+  let contentPackTitle: string | undefined;
+
+  if (packId) {
+    const pack = await prisma.contentPack.findUnique({
+      where: { id: packId },
+    });
+    if (pack) {
+      contentPack = {
+        vocabulary: pack.vocabulary as string[],
+        scriptures: pack.scriptures as { reference: string; text: string }[],
+        keyPeople: pack.keyPeople as string[],
+        themes: pack.themes as string[],
+        questions: pack.questions as { question: string; answer: string; options?: string[] }[],
+        keyPhrases: pack.keyPhrases as string[],
+      };
+      contentPackTitle = pack.title;
+    }
+  }
+
   const GameComponent = GAME_COMPONENTS[slug];
 
   if (!GameComponent) {
@@ -42,7 +83,17 @@ export default async function GamePage({
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
-      <GameComponent gameId={game.id} userId={session?.user?.id} />
+      {contentPackTitle && (
+        <p className="text-sm text-teal-600 dark:text-teal-400 mb-2">
+          {contentPackTitle}
+        </p>
+      )}
+      <GameComponent
+        gameId={game.id}
+        userId={session?.user?.id}
+        contentPack={contentPack}
+        contentPackTitle={contentPackTitle}
+      />
     </div>
   );
 }

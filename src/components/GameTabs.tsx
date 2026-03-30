@@ -1,0 +1,111 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+
+interface GameCard {
+  id: string;
+  href: string;
+  category: string;
+  ageGroup: string;
+  title: string;
+  description: string;
+}
+
+interface GameTabsProps {
+  evergreen: GameCard[];
+  meetingPrep: GameCard[];
+  meetingLive: GameCard[];
+}
+
+const TABS = [
+  { key: "evergreen", label: "Evergreen" },
+  { key: "prep", label: "This Week" },
+  { key: "live", label: "Meeting Live" },
+] as const;
+
+type TabKey = (typeof TABS)[number]["key"];
+
+export default function GameTabs({
+  evergreen,
+  meetingPrep,
+  meetingLive,
+}: GameTabsProps) {
+  const [activeTab, setActiveTab] = useState<TabKey>("evergreen");
+
+  const cards =
+    activeTab === "evergreen"
+      ? evergreen
+      : activeTab === "prep"
+        ? meetingPrep
+        : meetingLive;
+
+  return (
+    <>
+      {/* Tabs */}
+      <div className="flex gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1 mb-8 w-fit">
+        {TABS.map((tab) => {
+          const count =
+            tab.key === "evergreen"
+              ? evergreen.length
+              : tab.key === "prep"
+                ? meetingPrep.length
+                : meetingLive.length;
+
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition ${
+                activeTab === tab.key
+                  ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-sm"
+                  : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
+              }`}
+            >
+              {tab.label}
+              {count > 0 && (
+                <span className="ml-1.5 text-xs opacity-60">({count})</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Cards */}
+      {cards.length === 0 ? (
+        <div className="text-center py-12">
+          <p className="text-zinc-500 dark:text-zinc-400 text-lg">
+            {activeTab === "evergreen"
+              ? "No games available yet. Check back soon!"
+              : activeTab === "prep"
+                ? "No meeting preparation games this week. An admin needs to create content for this week."
+                : "No meeting live games this week. Check back before your next meeting!"}
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {cards.map((card) => (
+            <Link
+              key={card.id}
+              href={card.href}
+              className="group bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-6 hover:shadow-lg hover:border-teal-300 dark:hover:border-teal-700 transition"
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xs font-medium bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 px-2 py-1 rounded-full">
+                  {card.category}
+                </span>
+                <span className="text-xs text-zinc-400">{card.ageGroup}</span>
+              </div>
+              <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50 group-hover:text-teal-600 dark:group-hover:text-teal-400 transition mb-2">
+                {card.title}
+              </h2>
+              <p className="text-zinc-500 dark:text-zinc-400 text-sm">
+                {card.description}
+              </p>
+            </Link>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}

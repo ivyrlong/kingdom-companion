@@ -8,10 +8,9 @@ import {
   type Difficulty,
 } from "@/lib/game-data/bible-books";
 
-interface Props {
-  gameId: string;
-  userId?: string;
-}
+import type { GameProps } from "@/app/(dashboard)/games/[slug]/page";
+
+type Props = GameProps;
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
