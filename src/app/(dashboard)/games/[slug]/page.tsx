@@ -13,6 +13,7 @@ import QuietListeners from "@/components/games/QuietListeners";
 import Crossword from "@/components/games/Crossword";
 import Cryptogram from "@/components/games/Cryptogram";
 import Hangman from "@/components/games/Hangman";
+import JigsawPuzzle from "@/components/games/JigsawPuzzle";
 
 export interface ContentPackData {
   vocabulary: string[];
@@ -44,6 +45,7 @@ const GAME_COMPONENTS: Record<string, React.ComponentType<GameProps>> = {
   "crossword": Crossword,
   "cryptogram": Cryptogram,
   "hangman": Hangman,
+  "jigsaw-puzzle": JigsawPuzzle as unknown as React.ComponentType<GameProps>,
 };
 
 export default async function GamePage({
@@ -68,9 +70,12 @@ export default async function GamePage({
   let contentPack: ContentPackData | undefined;
   let contentPackTitle: string | undefined;
 
+  let imageUrl: string | undefined;
+
   if (packId) {
     const pack = await prisma.contentPack.findUnique({
       where: { id: packId },
+      include: { images: { take: 1 } },
     });
     if (pack) {
       contentPack = {
@@ -82,6 +87,9 @@ export default async function GamePage({
         keyPhrases: pack.keyPhrases as string[],
       };
       contentPackTitle = pack.title;
+      if (pack.images.length > 0) {
+        imageUrl = `/${pack.images[0].path}`;
+      }
     }
   }
 
@@ -113,6 +121,7 @@ export default async function GamePage({
         ageGroup={(session?.user as { ageGroup?: string })?.ageGroup as AgeGroup | undefined}
         contentPack={contentPack}
         contentPackTitle={contentPackTitle}
+        {...(imageUrl && { imageUrl })}
       />
     </div>
   );

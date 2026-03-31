@@ -119,6 +119,14 @@ const games = [
     ageGroup: "FAMILY" as const,
     category: "Word",
   },
+  {
+    slug: "jigsaw-puzzle",
+    title: "Jigsaw Puzzle",
+    description:
+      "Drag and drop the pieces to complete the picture! Choose your difficulty level.",
+    ageGroup: "LITTLE_ONES" as const,
+    category: "Puzzle",
+  },
 ];
 
 const badges = [

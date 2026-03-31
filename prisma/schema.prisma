@@ -130,6 +130,7 @@ model ContentPack {
 
   meetingWeek MeetingWeek?   @relation(fields: [meetingWeekId], references: [id], onDelete: SetNull)
   instances   GameInstance[]
+  images      ImageAsset[]
 
   @@index([context])
   @@index([meetingWeekId])
@@ -190,6 +191,34 @@ model Badge {
   imageUrl    String?
 
   profiles Profile[]
+}
+
+// ImageAsset = uploaded images for visual games (puzzles, hidden objects, coloring).
+model ImageAsset {
+  id            String       @id @default(cuid())
+  filename      String       // original filename
+  path          String       // relative path from public/ (e.g. "uploads/abc123.jpg")
+  altText       String       @default("")
+  category      ImageCategory
+  ageGroup      AgeGroup     @default(FAMILY)
+  tags          Json         @default("[]") // string[]
+  width         Int?
+  height        Int?
+  contentPackId String?
+  createdAt     DateTime     @default(now())
+
+  contentPack ContentPack? @relation(fields: [contentPackId], references: [id], onDelete: SetNull)
+
+  @@index([category])
+  @@index([contentPackId])
+}
+
+enum ImageCategory {
+  SCENE         // For hidden objects, backgrounds
+  CHARACTER     // Bible character illustrations
+  ILLUSTRATION  // General illustrations for puzzles
+  OUTLINE       // Line art for coloring pages
+  PHOTO         // Photos
 }
 
 // ─── Enums ─────────────────────────────────────────────────────────────
