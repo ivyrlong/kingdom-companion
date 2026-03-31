@@ -115,6 +115,10 @@ function isDailyGameCompatible(
     case "name-that-scripture":
       // 1 scripture is enough for a quick daily challenge
       return true;
+    case "cryptogram":
+      return data.keyPhrases.length >= 1;
+    case "hangman":
+      return data.vocabulary.length >= 3;
     default:
       return false;
   }

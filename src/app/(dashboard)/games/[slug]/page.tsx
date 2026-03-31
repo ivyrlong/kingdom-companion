@@ -9,6 +9,10 @@ import BibleWordSearch from "@/components/games/BibleWordSearch";
 import NameThatScripture from "@/components/games/NameThatScripture";
 import TheocraticTrivia from "@/components/games/TheocraticTrivia";
 import WhoAmI from "@/components/games/WhoAmI";
+import QuietListeners from "@/components/games/QuietListeners";
+import Crossword from "@/components/games/Crossword";
+import Cryptogram from "@/components/games/Cryptogram";
+import Hangman from "@/components/games/Hangman";
 
 export interface ContentPackData {
   vocabulary: string[];
@@ -33,6 +37,10 @@ const GAME_COMPONENTS: Record<string, React.ComponentType<GameProps>> = {
   "name-that-scripture": NameThatScripture,
   "theocratic-trivia": TheocraticTrivia,
   "who-am-i": WhoAmI,
+  "quiet-listeners": QuietListeners,
+  "crossword": Crossword,
+  "cryptogram": Cryptogram,
+  "hangman": Hangman,
 };
 
 export default async function GamePage({

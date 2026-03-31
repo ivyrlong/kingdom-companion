@@ -87,6 +87,38 @@ const games = [
     ageGroup: "LITTLE_ONES" as const,
     category: "Arcade",
   },
+  {
+    slug: "quiet-listeners",
+    title: "Quiet Listeners",
+    description:
+      "Count how many times you hear Jehovah, Jesus, and Bible during the meeting. A great tool for little ones!",
+    ageGroup: "LITTLE_ONES" as const,
+    category: "Meeting Tool",
+  },
+  {
+    slug: "crossword",
+    title: "Crossword",
+    description:
+      "Solve Bible-themed crossword puzzles. Tap clues, fill in letters, and complete the grid!",
+    ageGroup: "YOUTH" as const,
+    category: "Puzzle",
+  },
+  {
+    slug: "cryptogram",
+    title: "Cryptogram",
+    description:
+      "Crack the code! Each symbol represents a letter. Decode the hidden Bible phrase.",
+    ageGroup: "YOUTH" as const,
+    category: "Puzzle",
+  },
+  {
+    slug: "hangman",
+    title: "Hangman",
+    description:
+      "Guess the Bible-themed word letter by letter before the drawing is complete!",
+    ageGroup: "FAMILY" as const,
+    category: "Word",
+  },
 ];
 
 const badges = [

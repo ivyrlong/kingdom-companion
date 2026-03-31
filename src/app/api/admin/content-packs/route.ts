@@ -123,7 +123,15 @@ function isGameCompatible(
       return data.keyPeople.length >= 3;
     case "name-that-scripture":
       return data.scriptures.length >= 4;
+    case "crossword":
+      return data.vocabulary.length >= 4;
+    case "cryptogram":
+      return data.keyPhrases.length >= 3 || data.vocabulary.length >= 5;
+    case "hangman":
+      return data.vocabulary.length >= 5;
     // Meeting live games
+    case "quiet-listeners":
+      return true; // Always available for meetings
     case "meeting-bingo":
       return data.keyPhrases.length >= 9;
     case "tap-when-you-hear":
