@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
+import ProfileSettings from "@/components/ProfileSettings";
 
 export const metadata = { title: "Profile | Kingdom Companion" };
 
@@ -62,6 +63,13 @@ export default async function ProfilePage() {
           </div>
         </div>
       </div>
+
+      {/* Settings */}
+      <ProfileSettings
+        currentAgeGroup={user.ageGroup}
+        displayName={user.profile?.displayName ?? user.name ?? ""}
+        congregation={user.profile?.congregation ?? ""}
+      />
 
       {/* Badges */}
       {user.profile?.badges && user.profile.badges.length > 0 && (

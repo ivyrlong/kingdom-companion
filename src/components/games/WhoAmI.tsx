@@ -7,6 +7,14 @@ import Confetti from "@/components/Confetti";
 
 type Props = GameProps;
 
+function getDifficulty(ageGroup?: string) {
+  switch (ageGroup) {
+    case "LITTLE_ONES": return "easy";
+    case "ADULT": return "hard";
+    default: return "medium"; // YOUTH, FAMILY, undefined
+  }
+}
+
 interface CharacterData {
   name: string;
   clues: string[];
@@ -216,9 +224,9 @@ const CHARACTER_DATABASE: CharacterData[] = [
   },
 ];
 
-const TOTAL_ROUNDS = 8;
+const DEFAULT_TOTAL_ROUNDS = 8;
 const CLUES_PER_ROUND = 5;
-const POINTS_PER_CLUE = [100, 80, 60, 40, 20]; // More points for fewer clues needed
+const DEFAULT_POINTS_PER_CLUE = [100, 80, 60, 40, 20]; // More points for fewer clues needed
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -229,7 +237,7 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-function buildRounds(contentPack?: Props["contentPack"]): CharacterData[] {
+function buildRounds(contentPack?: Props["contentPack"], totalRounds = DEFAULT_TOTAL_ROUNDS): CharacterData[] {
   let pool = CHARACTER_DATABASE;
 
   // If content pack has key people, prioritize those characters
@@ -244,18 +252,26 @@ function buildRounds(contentPack?: Props["contentPack"]): CharacterData[] {
     pool = shuffle(pool);
   }
 
-  return pool.slice(0, TOTAL_ROUNDS);
+  return pool.slice(0, totalRounds);
 }
 
-export default function WhoAmI({ gameId, userId, contentPack }: Props) {
+export default function WhoAmI({ gameId, userId, contentPack, ageGroup }: Props) {
   const { status, finalScore, startSession, endSession, reset } =
     useGameSession({ gameId, userId });
 
+  const difficulty = getDifficulty(ageGroup);
+  const TOTAL_ROUNDS = difficulty === "easy" ? 4 : difficulty === "hard" ? 10 : DEFAULT_TOTAL_ROUNDS;
+  const NUM_OPTIONS = difficulty === "easy" ? 2 : 4;
+  const POINTS_PER_CLUE = difficulty === "hard"
+    ? [80, 60, 40, 30, 15]
+    : DEFAULT_POINTS_PER_CLUE;
+  const START_CLUE_INDEX = difficulty === "easy" ? 1 : 0; // easy starts with 2 clues visible
+
   const [rounds, setRounds] = useState<CharacterData[]>(() =>
-    buildRounds(contentPack)
+    buildRounds(contentPack, TOTAL_ROUNDS)
   );
   const [currentRound, setCurrentRound] = useState(0);
-  const [clueIndex, setClueIndex] = useState(0);
+  const [clueIndex, setClueIndex] = useState(START_CLUE_INDEX);
   const [score, setScore] = useState(0);
   const [guess, setGuess] = useState("");
   const [feedback, setFeedback] = useState<"correct" | "wrong" | null>(null);
@@ -263,15 +279,15 @@ export default function WhoAmI({ gameId, userId, contentPack }: Props) {
 
   const character = rounds[currentRound];
 
-  // Build 4 multiple choice options for the current round
+  // Build multiple choice options for the current round
   const options = useMemo(() => {
     if (!character) return [];
     const others = rounds
       .filter((_, i) => i !== currentRound)
       .map((c) => c.name);
-    const wrongChoices = shuffle(others).slice(0, 3);
+    const wrongChoices = shuffle(others).slice(0, NUM_OPTIONS - 1);
     return shuffle([character.name, ...wrongChoices]);
-  }, [character, rounds, currentRound]);
+  }, [character, rounds, currentRound, NUM_OPTIONS]);
 
   const visibleClues = character
     ? character.clues.slice(0, clueIndex + 1)
@@ -305,7 +321,7 @@ export default function WhoAmI({ gameId, userId, contentPack }: Props) {
       endSession(score);
     } else {
       setCurrentRound(nextRound);
-      setClueIndex(0);
+      setClueIndex(START_CLUE_INDEX);
       setGuess("");
       setFeedback(null);
       setShowAnswer(false);
@@ -313,9 +329,9 @@ export default function WhoAmI({ gameId, userId, contentPack }: Props) {
   }, [currentRound, score, endSession]);
 
   const handleRestart = useCallback(() => {
-    setRounds(buildRounds(contentPack));
+    setRounds(buildRounds(contentPack, TOTAL_ROUNDS));
     setCurrentRound(0);
-    setClueIndex(0);
+    setClueIndex(START_CLUE_INDEX);
     setScore(0);
     setGuess("");
     setFeedback(null);

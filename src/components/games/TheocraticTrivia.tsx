@@ -7,6 +7,14 @@ import Confetti from "@/components/Confetti";
 
 type Props = GameProps;
 
+function getDifficulty(ageGroup?: string) {
+  switch (ageGroup) {
+    case "LITTLE_ONES": return "easy";
+    case "ADULT": return "hard";
+    default: return "medium"; // YOUTH, FAMILY, undefined
+  }
+}
+
 interface TriviaQuestion {
   question: string;
   answer: string;
@@ -26,7 +34,7 @@ const DEFAULT_QUESTIONS: TriviaQuestion[] = [
   { question: "In what city was Jesus born?", answer: "Bethlehem", options: ["Bethlehem", "Nazareth", "Jerusalem", "Capernaum"] },
 ];
 
-export default function TheocraticTrivia({ gameId, userId, contentPack }: Props) {
+export default function TheocraticTrivia({ gameId, userId, contentPack, ageGroup }: Props) {
   const { status, finalScore, startSession, endSession, reset } =
     useGameSession({ gameId, userId });
 
@@ -38,6 +46,11 @@ export default function TheocraticTrivia({ gameId, userId, contentPack }: Props)
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [streak, setStreak] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const difficulty = getDifficulty(ageGroup);
+  const totalRounds = difficulty === "easy" ? 5 : difficulty === "hard" ? 10 : 8;
+  const numOptions = difficulty === "easy" ? 3 : 4;
+  const answerDelay = difficulty === "hard" ? 800 : 1200;
 
   const startGame = useCallback(async () => {
     let triviaQuestions: TriviaQuestion[];
@@ -51,13 +64,21 @@ export default function TheocraticTrivia({ gameId, userId, contentPack }: Props)
 
         // Shuffle options
         const shuffled = [...opts].sort(() => Math.random() - 0.5);
-        return { question: q.question, answer: q.answer, options: shuffled.slice(0, 4) };
+        return { question: q.question, answer: q.answer, options: shuffled.slice(0, numOptions) };
       });
     } else {
       triviaQuestions = [...DEFAULT_QUESTIONS].sort(() => Math.random() - 0.5);
+      // Trim options to numOptions for default questions too
+      if (numOptions < 4) {
+        triviaQuestions = triviaQuestions.map((q) => {
+          const correctIdx = q.options.indexOf(q.answer);
+          const wrong = q.options.filter((_, i) => i !== correctIdx).slice(0, numOptions - 1);
+          return { ...q, options: [q.answer, ...wrong].sort(() => Math.random() - 0.5) };
+        });
+      }
     }
 
-    setQuestions(triviaQuestions.slice(0, 10));
+    setQuestions(triviaQuestions.slice(0, totalRounds));
     setCurrentQ(0);
     setSelected(null);
     setShowResult(false);
@@ -65,7 +86,7 @@ export default function TheocraticTrivia({ gameId, userId, contentPack }: Props)
     setStreak(0);
     setTimeElapsed(0);
     await startSession();
-  }, [startSession, contentPack]);
+  }, [startSession, contentPack, totalRounds, numOptions]);
 
   useEffect(() => {
     if (status === "playing") {
@@ -101,9 +122,9 @@ export default function TheocraticTrivia({ gameId, userId, contentPack }: Props)
           setSelected(null);
           setShowResult(false);
         }
-      }, 1200);
+      }, answerDelay);
     },
-    [showResult, questions, currentQ, correctCount, streak, timeElapsed, endSession]
+    [showResult, questions, currentQ, correctCount, streak, timeElapsed, endSession, answerDelay]
   );
 
   const formatTime = (s: number) =>

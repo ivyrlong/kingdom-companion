@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/db";
+import { auth } from "@/lib/auth";
 import GameTabs from "@/components/GameTabs";
 
 const AGE_GROUP_LABELS: Record<string, string> = {
@@ -19,6 +20,8 @@ export default async function GamesPage({
 }) {
   const { week: weekParam } = await searchParams;
   const weekOffset = parseInt(weekParam ?? "0", 10) || 0;
+  const session = await auth();
+  const userAgeGroup = (session?.user as { ageGroup?: string })?.ageGroup ?? "YOUTH";
 
   // Evergreen games (engines without content packs — classic games)
   const games = await prisma.game.findMany({
@@ -85,6 +88,7 @@ export default async function GamesPage({
     href: `/games/${game.slug}`,
     category: game.category,
     ageGroup: AGE_GROUP_LABELS[game.ageGroup] ?? game.ageGroup,
+    gameAgeGroup: game.ageGroup,
     title: game.title,
     description: game.description,
   }));
@@ -94,6 +98,7 @@ export default async function GamesPage({
     href: `/games/${inst.game.slug}?pack=${inst.contentPackId}`,
     category: inst.game.category,
     ageGroup: inst.contentPack.meetingWeek?.title ?? "This Week",
+    gameAgeGroup: inst.game.ageGroup,
     title: inst.title,
     description: inst.game.description,
   }));
@@ -103,6 +108,7 @@ export default async function GamesPage({
     href: `/games/${inst.game.slug}?pack=${inst.contentPackId}`,
     category: inst.game.category,
     ageGroup: inst.contentPack.meetingWeek?.title ?? "This Week",
+    gameAgeGroup: inst.game.ageGroup,
     title: inst.title,
     description: inst.game.description,
   }));
@@ -112,6 +118,7 @@ export default async function GamesPage({
     href: `/games/${inst.game.slug}?pack=${inst.contentPackId}`,
     category: inst.game.category,
     ageGroup: "Daily Text",
+    gameAgeGroup: inst.game.ageGroup,
     title: inst.title,
     description: inst.game.description,
   }));
@@ -136,6 +143,7 @@ export default async function GamesPage({
         meetingLive={liveCards}
         weekOffset={weekOffset}
         weekLabel={weekLabel}
+        userAgeGroup={userAgeGroup}
       />
     </div>
   );

@@ -7,6 +7,14 @@ import Confetti from "@/components/Confetti";
 
 type Props = GameProps;
 
+function getDifficulty(ageGroup?: string) {
+  switch (ageGroup) {
+    case "LITTLE_ONES": return "easy";
+    case "ADULT": return "hard";
+    default: return "medium"; // YOUTH, FAMILY, undefined
+  }
+}
+
 interface WordEntry {
   word: string;
   hint: string;
@@ -29,7 +37,7 @@ const DEFAULT_WORDS: WordEntry[] = [
   { word: "BAPTISM", hint: "A symbol of dedication" },
 ];
 
-const MAX_WRONG = 6;
+const DEFAULT_MAX_WRONG = 6;
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
 function shuffleArray<T>(arr: T[]): T[] {
@@ -163,9 +171,12 @@ function drawHangman(
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
 
-export default function Hangman({ gameId, userId, contentPack }: Props) {
+export default function Hangman({ gameId, userId, contentPack, ageGroup }: Props) {
   const { status, finalScore, startSession, endSession, reset } =
     useGameSession({ gameId, userId });
+
+  const difficulty = getDifficulty(ageGroup);
+  const MAX_WRONG = difficulty === "easy" ? 8 : difficulty === "hard" ? 5 : DEFAULT_MAX_WRONG;
 
   // Word pool
   const [wordPool, setWordPool] = useState<WordEntry[]>([]);
@@ -191,6 +202,7 @@ export default function Hangman({ gameId, userId, contentPack }: Props) {
 
   // Build word pool from contentPack or defaults
   const buildWordPool = useCallback((): WordEntry[] => {
+    let pool: WordEntry[];
     if (
       contentPack?.vocabulary &&
       contentPack.vocabulary.length >= 3
@@ -202,13 +214,25 @@ export default function Hangman({ gameId, userId, contentPack }: Props) {
             ? contentPack.themes
             : [];
 
-      return contentPack.vocabulary.map((word, i) => ({
+      pool = contentPack.vocabulary.map((word, i) => ({
         word: word.toUpperCase().replace(/[^A-Z]/g, ""),
         hint: hints[i % Math.max(hints.length, 1)] ?? "Bible vocabulary",
       }));
+    } else {
+      pool = [...DEFAULT_WORDS];
     }
-    return [...DEFAULT_WORDS];
-  }, [contentPack]);
+
+    // Filter by word length based on difficulty
+    if (difficulty === "easy") {
+      const short = pool.filter((w) => w.word.length <= 5);
+      if (short.length >= 3) pool = short;
+    } else if (difficulty === "hard") {
+      const long = pool.filter((w) => w.word.length >= 6);
+      if (long.length >= 3) pool = long;
+    }
+
+    return pool;
+  }, [contentPack, difficulty]);
 
   // Detect dark mode for canvas
   useEffect(() => {
@@ -360,7 +384,7 @@ export default function Hangman({ gameId, userId, contentPack }: Props) {
           Bible Hangman
         </h1>
         <p className="text-zinc-500 dark:text-zinc-400 mb-8 max-w-md mx-auto">
-          Guess the Bible-themed word one letter at a time. You have 6 tries
+          Guess the Bible-themed word one letter at a time. You have {MAX_WRONG} tries
           per word — earn bonus points for fewer wrong guesses!
         </p>
         <button

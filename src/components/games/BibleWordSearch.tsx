@@ -7,6 +7,14 @@ import Confetti from "@/components/Confetti";
 
 type Props = GameProps;
 
+function getDifficulty(ageGroup?: string) {
+  switch (ageGroup) {
+    case "LITTLE_ONES": return "easy";
+    case "ADULT": return "hard";
+    default: return "medium"; // YOUTH, FAMILY, undefined
+  }
+}
+
 type Direction = [number, number];
 const DIRECTIONS: Direction[] = [
   [0, 1],   // right
@@ -103,7 +111,7 @@ function generateGrid(
   return { grid, placed };
 }
 
-export default function BibleWordSearch({ gameId, userId, contentPack }: Props) {
+export default function BibleWordSearch({ gameId, userId, contentPack, ageGroup }: Props) {
   const { status, finalScore, startSession, endSession, reset } =
     useGameSession({ gameId, userId });
 
@@ -117,12 +125,25 @@ export default function BibleWordSearch({ gameId, userId, contentPack }: Props) 
   const gridRef = useRef<HTMLDivElement>(null);
 
   const startGame = useCallback(async () => {
-    const words =
-      contentPack?.vocabulary && contentPack.vocabulary.length >= 5
-        ? contentPack.vocabulary.slice(0, 12)
-        : DEFAULT_WORDS.slice(0, 10);
+    const difficulty = getDifficulty(ageGroup);
+    const wordCount = difficulty === "easy" ? 5 : difficulty === "hard" ? 10 : 8;
+    const minGridSize = difficulty === "easy" ? 8 : difficulty === "hard" ? 12 : 10;
+    const maxWordLength = difficulty === "easy" ? 6 : Infinity;
 
-    const size = Math.max(10, Math.ceil(Math.sqrt(words.join("").length * 3)));
+    let pool =
+      contentPack?.vocabulary && contentPack.vocabulary.length >= 5
+        ? contentPack.vocabulary
+        : [...DEFAULT_WORDS];
+
+    // For easy mode, prefer shorter words
+    if (maxWordLength < Infinity) {
+      pool = pool.filter((w) => w.replace(/[^A-Za-z]/g, "").length <= maxWordLength).length >= wordCount
+        ? pool.filter((w) => w.replace(/[^A-Za-z]/g, "").length <= maxWordLength)
+        : pool;
+    }
+
+    const words = pool.slice(0, wordCount);
+    const size = Math.max(minGridSize, Math.ceil(Math.sqrt(words.join("").length * 3)));
     const { grid: newGrid, placed } = generateGrid(words, size);
 
     setGrid(newGrid);
@@ -131,7 +152,7 @@ export default function BibleWordSearch({ gameId, userId, contentPack }: Props) 
     setSelectedCells([]);
     setTimeElapsed(0);
     await startSession();
-  }, [startSession, contentPack]);
+  }, [startSession, contentPack, ageGroup]);
 
   useEffect(() => {
     if (status === "playing") {

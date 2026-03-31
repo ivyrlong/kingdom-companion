@@ -23,9 +23,12 @@ export interface ContentPackData {
   keyPhrases: string[];
 }
 
+export type AgeGroup = "LITTLE_ONES" | "YOUTH" | "ADULT" | "FAMILY";
+
 export interface GameProps {
   gameId: string;
   userId?: string;
+  ageGroup?: AgeGroup;
   contentPack?: ContentPackData;
   contentPackTitle?: string;
 }
@@ -107,6 +110,7 @@ export default async function GamePage({
       <GameComponent
         gameId={game.id}
         userId={session?.user?.id}
+        ageGroup={(session?.user as { ageGroup?: string })?.ageGroup as AgeGroup | undefined}
         contentPack={contentPack}
         contentPackTitle={contentPackTitle}
       />

@@ -7,6 +7,14 @@ import Confetti from "@/components/Confetti";
 
 type Props = GameProps;
 
+function getDifficulty(ageGroup?: string) {
+  switch (ageGroup) {
+    case "LITTLE_ONES": return "easy";
+    case "ADULT": return "hard";
+    default: return "medium"; // YOUTH, FAMILY, undefined
+  }
+}
+
 /* ─── Types ─────────────────────────────────────────────────────────── */
 
 type Dir = "across" | "down";
@@ -362,7 +370,7 @@ const KEYBOARD_ROWS = [
 
 /* ─── Component ─────────────────────────────────────────────────────── */
 
-export default function Crossword({ gameId, userId, contentPack }: Props) {
+export default function Crossword({ gameId, userId, contentPack, ageGroup }: Props) {
   const { status, finalScore, startSession, endSession, reset } =
     useGameSession({ gameId, userId });
 
@@ -381,10 +389,13 @@ export default function Crossword({ gameId, userId, contentPack }: Props) {
 
   /* ── Derive word definitions ────────────────────────────────────── */
 
+  const difficulty = getDifficulty(ageGroup);
+  const maxWords = difficulty === "easy" ? 5 : difficulty === "hard" ? 10 : 8;
+
   const wordDefs = useMemo<WordDef[]>(() => {
     if (contentPack?.vocabulary && contentPack.vocabulary.length >= 4) {
       return contentPack.vocabulary
-        .slice(0, 12)
+        .slice(0, maxWords)
         .map((v) => {
           const upper = v.toUpperCase().replace(/[^A-Z]/g, "");
           return {
@@ -396,8 +407,8 @@ export default function Crossword({ gameId, userId, contentPack }: Props) {
     }
     // Pick a random built-in bank
     const bank = WORD_BANKS[Math.floor(Math.random() * WORD_BANKS.length)];
-    return bank;
-  }, [contentPack]);
+    return bank.slice(0, maxWords);
+  }, [contentPack, maxWords]);
 
   /* ── Start / timer ──────────────────────────────────────────────── */
 

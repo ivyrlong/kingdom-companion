@@ -8,6 +8,14 @@ import Confetti from "@/components/Confetti";
 
 type Props = GameProps;
 
+function getDifficulty(ageGroup?: string) {
+  switch (ageGroup) {
+    case "LITTLE_ONES": return "easy";
+    case "ADULT": return "hard";
+    default: return "medium"; // YOUTH, FAMILY, undefined
+  }
+}
+
 interface Round {
   text: string;
   correctAnswer: string;
@@ -34,7 +42,8 @@ function getBookFromRef(ref: string): string {
 
 function generateRounds(
   scriptures: { reference: string; text: string }[],
-  count: number
+  count: number,
+  numOptions = 4
 ): Round[] {
   const shuffled = [...scriptures].sort(() => Math.random() - 0.5);
   const rounds: Round[] = [];
@@ -43,10 +52,10 @@ function generateRounds(
     const scripture = shuffled[i];
     const correctBook = getBookFromRef(scripture.reference);
 
-    // Pick 3 random wrong answers
+    // Pick random wrong answers based on numOptions
     const wrongBooks = BIBLE_BOOKS.filter((b) => b !== correctBook)
       .sort(() => Math.random() - 0.5)
-      .slice(0, 3);
+      .slice(0, numOptions - 1);
 
     const options = [correctBook, ...wrongBooks].sort(
       () => Math.random() - 0.5
@@ -62,7 +71,7 @@ function generateRounds(
   return rounds;
 }
 
-export default function NameThatScripture({ gameId, userId, contentPack }: Props) {
+export default function NameThatScripture({ gameId, userId, contentPack, ageGroup }: Props) {
   const { status, finalScore, startSession, endSession, reset } =
     useGameSession({ gameId, userId });
 
@@ -74,13 +83,17 @@ export default function NameThatScripture({ gameId, userId, contentPack }: Props
   const [timeElapsed, setTimeElapsed] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const difficulty = getDifficulty(ageGroup);
+  const totalRounds = difficulty === "easy" ? 5 : difficulty === "hard" ? 10 : 8;
+  const numOptions = difficulty === "easy" ? 3 : difficulty === "hard" ? 5 : 4;
+
   const startGame = useCallback(async () => {
     const scriptures =
       contentPack?.scriptures && contentPack.scriptures.length > 0
         ? contentPack.scriptures
         : SCRIPTURE_PAIRS.map((p) => ({ reference: p.reference, text: p.text }));
 
-    const newRounds = generateRounds(scriptures, 10);
+    const newRounds = generateRounds(scriptures, totalRounds, numOptions);
     setRounds(newRounds);
     setCurrentRound(0);
     setSelected(null);
@@ -88,7 +101,7 @@ export default function NameThatScripture({ gameId, userId, contentPack }: Props
     setCorrectCount(0);
     setTimeElapsed(0);
     await startSession();
-  }, [startSession, contentPack]);
+  }, [startSession, contentPack, totalRounds, numOptions]);
 
   useEffect(() => {
     if (status === "playing") {
