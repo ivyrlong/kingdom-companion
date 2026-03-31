@@ -4,6 +4,7 @@ import { useState, useCallback, useMemo } from "react";
 import { useGameSession } from "@/hooks/useGameSession";
 import type { GameProps } from "@/app/(dashboard)/games/[slug]/page";
 import Confetti from "@/components/Confetti";
+import { getIconForConcept } from "@/components/icons/BibleIcons";
 
 type Props = GameProps;
 
@@ -457,15 +458,19 @@ export default function WhoAmI({ gameId, userId, contentPack, ageGroup }: Props)
       {/* Answer options */}
       {!feedback ? (
         <div className="grid grid-cols-2 gap-3">
-          {options.map((option) => (
-            <button
-              key={option}
-              onClick={() => handleGuess(option)}
-              className="p-4 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-50 font-medium hover:border-coral-300 dark:hover:border-coral-700 hover:shadow-md transition text-lg"
-            >
-              {option}
-            </button>
-          ))}
+          {options.map((option) => {
+            const OptionIcon = getIconForConcept(option);
+            return (
+              <button
+                key={option}
+                onClick={() => handleGuess(option)}
+                className="p-4 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-50 font-medium hover:border-coral-300 dark:hover:border-coral-700 hover:shadow-md transition text-lg inline-flex items-center justify-center gap-2"
+              >
+                {OptionIcon && <OptionIcon size={28} />}
+                {option}
+              </button>
+            );
+          })}
         </div>
       ) : (
         <div className="text-center">

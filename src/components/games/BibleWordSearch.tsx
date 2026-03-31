@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useGameSession } from "@/hooks/useGameSession";
 import type { GameProps } from "@/app/(dashboard)/games/[slug]/page";
 import Confetti from "@/components/Confetti";
+import { getIconForConcept } from "@/components/icons/BibleIcons";
 
 type Props = GameProps;
 
@@ -335,18 +336,24 @@ export default function BibleWordSearch({ gameId, userId, contentPack, ageGroup 
 
       {/* Word list */}
       <div className="flex flex-wrap gap-2 mb-4">
-        {placedWords.map((pw) => (
-          <span
-            key={pw.word}
-            className={`px-2 py-1 rounded text-xs font-medium ${
-              foundWords.has(pw.word)
-                ? "bg-coral-100 dark:bg-coral-900/30 text-coral-600 dark:text-coral-400 line-through"
-                : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
-            }`}
-          >
-            {pw.word}
-          </span>
-        ))}
+        {placedWords.map((pw) => {
+          const WordIcon = getIconForConcept(pw.word);
+          const isFound = foundWords.has(pw.word);
+          return (
+            <span
+              key={pw.word}
+              className={`px-2 py-1 rounded text-xs font-medium inline-flex items-center gap-1 ${
+                isFound
+                  ? "bg-coral-100 dark:bg-coral-900/30 text-coral-600 dark:text-coral-400 line-through"
+                  : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
+              }`}
+            >
+              {WordIcon && <WordIcon size={isFound ? 24 : 20} />}
+              {pw.word}
+              {isFound && <span className="ml-0.5 no-underline" style={{ textDecoration: "none" }}>&#10003;</span>}
+            </span>
+          );
+        })}
       </div>
 
       {/* Grid */}

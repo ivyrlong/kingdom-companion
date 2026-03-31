@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useGameSession } from "@/hooks/useGameSession";
 import type { GameProps } from "@/app/(dashboard)/games/[slug]/page";
 import Confetti from "@/components/Confetti";
+import { getIconForConcept } from "@/components/icons/BibleIcons";
 
 type Props = GameProps;
 
@@ -531,14 +532,16 @@ export default function Hangman({ gameId, userId, contentPack, ageGroup }: Props
           </button>
 
           {showHint && (
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 italic bg-zinc-50 dark:bg-zinc-800 px-3 py-1.5 rounded-lg">
-              {currentHint}
-            </p>
+            <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400 italic bg-zinc-50 dark:bg-zinc-800 px-3 py-1.5 rounded-lg">
+              {(() => { const HintIcon = getIconForConcept(currentWord); return HintIcon ? <HintIcon size={40} /> : null; })()}
+              <span>{currentHint}</span>
+            </div>
           )}
 
           {/* Round result message */}
           {roundOver && (
             <div className="text-center">
+              {(() => { const RevealIcon = getIconForConcept(currentWord); return RevealIcon ? <div className="flex justify-center mb-2"><RevealIcon size={40} /></div> : null; })()}
               {roundWon ? (
                 <p className="text-green-600 dark:text-green-400 font-semibold">
                   Correct! +{100 + Math.max(0, (MAX_WRONG - wrongCount) * 20)}{" "}
