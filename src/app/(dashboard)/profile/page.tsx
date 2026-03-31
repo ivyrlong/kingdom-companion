@@ -36,7 +36,7 @@ export default async function ProfilePage() {
     <div className="max-w-4xl mx-auto px-4 py-8">
       <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-8 mb-8">
         <div className="flex items-center gap-6">
-          <div className="w-20 h-20 bg-teal-100 dark:bg-teal-900/30 rounded-full flex items-center justify-center text-3xl font-bold text-teal-600 dark:text-teal-400">
+          <div className="w-20 h-20 bg-coral-100 dark:bg-coral-900/30 rounded-full flex items-center justify-center text-3xl font-bold text-coral-600 dark:text-coral-400">
             {user.name?.[0]?.toUpperCase() ?? "?"}
           </div>
           <div>
@@ -49,7 +49,7 @@ export default async function ProfilePage() {
                 ` \u00B7 ${user.profile.congregation}`}
             </p>
             <div className="flex gap-4 mt-2 text-sm">
-              <span className="text-teal-600 dark:text-teal-400 font-medium">
+              <span className="text-coral-600 dark:text-coral-400 font-medium">
                 Level {user.profile?.level ?? 1}
               </span>
               <span className="text-zinc-400">
@@ -117,7 +117,7 @@ export default async function ProfilePage() {
                     <td className="px-4 py-3 text-zinc-900 dark:text-zinc-100">
                       {score.game.title}
                     </td>
-                    <td className="px-4 py-3 text-right font-medium text-teal-600 dark:text-teal-400">
+                    <td className="px-4 py-3 text-right font-medium text-coral-600 dark:text-coral-400">
                       {score.value.toLocaleString()}
                     </td>
                     <td className="px-4 py-3 text-right text-sm text-zinc-400">

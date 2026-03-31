@@ -116,7 +116,7 @@ export default function GameTabs({
           {weekOffset !== 0 && (
             <button
               onClick={() => router.push("/games")}
-              className="text-xs text-teal-600 dark:text-teal-400 hover:underline"
+              className="text-xs text-coral-600 dark:text-coral-400 hover:underline"
             >
               Back to this week
             </button>
@@ -137,15 +137,15 @@ export default function GameTabs({
             <Link
               key={card.id}
               href={card.href}
-              className="group bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-6 hover:shadow-lg hover:border-teal-300 dark:hover:border-teal-700 transition"
+              className="group bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-6 hover:shadow-lg hover:border-coral-300 dark:hover:border-coral-700 transition"
             >
               <div className="flex items-center gap-2 mb-3">
-                <span className="text-xs font-medium bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 px-2 py-1 rounded-full">
+                <span className="text-xs font-medium bg-coral-50 dark:bg-coral-900/30 text-coral-700 dark:text-coral-300 px-2 py-1 rounded-full">
                   {card.category}
                 </span>
                 <span className="text-xs text-zinc-400">{card.ageGroup}</span>
               </div>
-              <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50 group-hover:text-teal-600 dark:group-hover:text-teal-400 transition mb-2">
+              <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50 group-hover:text-coral-600 dark:group-hover:text-coral-400 transition mb-2">
                 {card.title}
               </h2>
               <p className="text-zinc-500 dark:text-zinc-400 text-sm">

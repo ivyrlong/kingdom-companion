@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useGameSession } from "@/hooks/useGameSession";
 import type { GameProps } from "@/app/(dashboard)/games/[slug]/page";
 import { SCRIPTURE_PAIRS } from "@/lib/game-data/scripture-pairs";
+import Confetti from "@/components/Confetti";
 
 type Props = GameProps;
 
@@ -141,7 +142,7 @@ export default function NameThatScripture({ gameId, userId, contentPack }: Props
         </p>
         <button
           onClick={startGame}
-          className="px-8 py-3 bg-teal-600 hover:bg-teal-700 text-white font-medium rounded-xl text-lg transition"
+          className="px-8 py-3 bg-coral-600 hover:bg-coral-700 text-white font-medium rounded-xl text-lg transition"
         >
           Start Game
         </button>
@@ -152,12 +153,14 @@ export default function NameThatScripture({ gameId, userId, contentPack }: Props
   // Finished screen
   if (status === "finished") {
     return (
+      <>
+      <Confetti active={status === "finished"} />
       <div className="text-center">
         <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50 mb-2">
           {correctCount === rounds.length ? "Perfect Score!" : "Game Over!"}
         </h1>
         <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-8 max-w-sm mx-auto mb-6">
-          <p className="text-5xl font-bold text-teal-600 dark:text-teal-400 mb-4">
+          <p className="text-5xl font-bold text-coral-600 dark:text-coral-400 mb-4">
             {finalScore?.toLocaleString()}
           </p>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
@@ -167,7 +170,7 @@ export default function NameThatScripture({ gameId, userId, contentPack }: Props
         <div className="flex gap-3 justify-center">
           <button
             onClick={() => { reset(); startGame(); }}
-            className="px-6 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-medium rounded-lg transition"
+            className="px-6 py-2.5 bg-coral-600 hover:bg-coral-700 text-white font-medium rounded-lg transition"
           >
             Play Again
           </button>
@@ -179,6 +182,7 @@ export default function NameThatScripture({ gameId, userId, contentPack }: Props
           </button>
         </div>
       </div>
+      </>
     );
   }
 
@@ -197,7 +201,7 @@ export default function NameThatScripture({ gameId, userId, contentPack }: Props
           <span className="text-zinc-500 dark:text-zinc-400">
             {currentRound + 1}/{rounds.length}
           </span>
-          <span className="text-teal-600 dark:text-teal-400">
+          <span className="text-coral-600 dark:text-coral-400">
             {correctCount} correct
           </span>
         </div>
@@ -205,7 +209,7 @@ export default function NameThatScripture({ gameId, userId, contentPack }: Props
 
       <div className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-full h-2 mb-8">
         <div
-          className="bg-teal-500 h-2 rounded-full transition-all duration-300"
+          className="bg-coral-500 h-2 rounded-full transition-all duration-300"
           style={{ width: `${((currentRound + 1) / rounds.length) * 100}%` }}
         />
       </div>
@@ -237,7 +241,7 @@ export default function NameThatScripture({ gameId, userId, contentPack }: Props
             }
           } else {
             classes +=
-              "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:border-teal-300 dark:hover:border-teal-600 hover:bg-teal-50 dark:hover:bg-teal-900/10 cursor-pointer";
+              "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:border-coral-300 dark:hover:border-coral-600 hover:bg-coral-50 dark:hover:bg-coral-900/10 cursor-pointer";
           }
 
           return (

@@ -93,7 +93,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
                   type="text"
                   required
                   minLength={2}
-                  className="w-full px-4 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition"
+                  className="w-full px-4 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-coral-500 focus:border-transparent outline-none transition"
                   placeholder="Your name"
                 />
               </div>
@@ -104,7 +104,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
                 <select
                   id="ageGroup"
                   name="ageGroup"
-                  className="w-full px-4 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition"
+                  className="w-full px-4 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-coral-500 focus:border-transparent outline-none transition"
                 >
                   <option value="LITTLE_ONES">Little Ones (5-8)</option>
                   <option value="YOUTH" selected>Youth (9-17)</option>
@@ -124,7 +124,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
               name="email"
               type="email"
               required
-              className="w-full px-4 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition"
+              className="w-full px-4 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-coral-500 focus:border-transparent outline-none transition"
               placeholder="your@email.com"
             />
           </div>
@@ -139,7 +139,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
               type="password"
               required
               minLength={6}
-              className="w-full px-4 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition"
+              className="w-full px-4 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-coral-500 focus:border-transparent outline-none transition"
               placeholder="Min 6 characters"
             />
           </div>
@@ -147,7 +147,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 px-4 bg-teal-600 hover:bg-teal-700 disabled:bg-teal-400 text-white font-medium rounded-lg transition"
+            className="w-full py-2.5 px-4 bg-coral-600 hover:bg-coral-700 disabled:bg-coral-400 text-white font-medium rounded-lg transition"
           >
             {loading
               ? "Please wait..."
@@ -161,14 +161,14 @@ export default function AuthForm({ mode }: AuthFormProps) {
           {mode === "login" ? (
             <>
               Don&apos;t have an account?{" "}
-              <Link href="/register" className="text-teal-600 hover:text-teal-700 font-medium">
+              <Link href="/register" className="text-coral-600 hover:text-coral-700 font-medium">
                 Sign up
               </Link>
             </>
           ) : (
             <>
               Already have an account?{" "}
-              <Link href="/login" className="text-teal-600 hover:text-teal-700 font-medium">
+              <Link href="/login" className="text-coral-600 hover:text-coral-700 font-medium">
                 Sign in
               </Link>
             </>

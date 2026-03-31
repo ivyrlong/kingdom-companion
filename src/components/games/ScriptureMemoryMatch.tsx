@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useGameSession } from "@/hooks/useGameSession";
 import { getRandomPairs, type ScripturePair } from "@/lib/game-data/scripture-pairs";
 import type { GameProps } from "@/app/(dashboard)/games/[slug]/page";
+import Confetti from "@/components/Confetti";
 
 type Props = GameProps;
 
@@ -209,7 +210,7 @@ export default function ScriptureMemoryMatch({ gameId, userId, contentPack }: Pr
             <button
               key={count}
               onClick={() => startGame(count)}
-              className="w-full p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl hover:border-teal-300 dark:hover:border-teal-700 transition text-left"
+              className="w-full p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl hover:border-coral-300 dark:hover:border-coral-700 transition text-left"
             >
               <span className="font-medium text-zinc-900 dark:text-zinc-100">
                 {label}
@@ -227,12 +228,14 @@ export default function ScriptureMemoryMatch({ gameId, userId, contentPack }: Pr
   // Finished screen
   if (status === "finished") {
     return (
+      <>
+      <Confetti active={status === "finished"} />
       <div className="text-center">
         <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50 mb-2">
           Well Done!
         </h1>
         <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-8 max-w-sm mx-auto mb-6">
-          <p className="text-5xl font-bold text-teal-600 dark:text-teal-400 mb-4">
+          <p className="text-5xl font-bold text-coral-600 dark:text-coral-400 mb-4">
             {finalScore?.toLocaleString()}
           </p>
           <div className="space-y-2 text-sm text-zinc-500 dark:text-zinc-400">
@@ -250,7 +253,7 @@ export default function ScriptureMemoryMatch({ gameId, userId, contentPack }: Pr
               reset();
               startGame(pairCount);
             }}
-            className="px-6 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-medium rounded-lg transition"
+            className="px-6 py-2.5 bg-coral-600 hover:bg-coral-700 text-white font-medium rounded-lg transition"
           >
             Play Again
           </button>
@@ -262,6 +265,7 @@ export default function ScriptureMemoryMatch({ gameId, userId, contentPack }: Pr
           </button>
         </div>
       </div>
+      </>
     );
   }
 
@@ -295,7 +299,7 @@ export default function ScriptureMemoryMatch({ gameId, userId, contentPack }: Pr
       {/* Progress bar */}
       <div className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-full h-2 mb-6">
         <div
-          className="bg-teal-500 h-2 rounded-full transition-all duration-300"
+          className="bg-coral-500 h-2 rounded-full transition-all duration-300"
           style={{
             width: `${(matchedPairs / pairCount) * 100}%`,
           }}
@@ -311,10 +315,10 @@ export default function ScriptureMemoryMatch({ gameId, userId, contentPack }: Pr
             disabled={card.matched || card.flipped}
             className={`relative h-28 sm:h-32 rounded-xl transition-all duration-300 text-sm ${
               card.matched
-                ? "bg-teal-50 dark:bg-teal-900/20 border-2 border-teal-300 dark:border-teal-700 opacity-60"
+                ? "bg-coral-50 dark:bg-coral-900/20 border-2 border-coral-300 dark:border-coral-700 opacity-60"
                 : card.flipped
-                  ? "bg-white dark:bg-zinc-800 border-2 border-teal-400 dark:border-teal-500 shadow-md"
-                  : "bg-teal-600 dark:bg-teal-800 border-2 border-teal-600 dark:border-teal-800 hover:bg-teal-500 dark:hover:bg-teal-700 cursor-pointer shadow-sm hover:shadow-md"
+                  ? "bg-white dark:bg-zinc-800 border-2 border-coral-400 dark:border-coral-500 shadow-md"
+                  : "bg-coral-600 dark:bg-coral-800 border-2 border-coral-600 dark:border-coral-800 hover:bg-coral-500 dark:hover:bg-coral-700 cursor-pointer shadow-sm hover:shadow-md"
             }`}
           >
             {card.flipped || card.matched ? (
@@ -322,7 +326,7 @@ export default function ScriptureMemoryMatch({ gameId, userId, contentPack }: Pr
                 <span
                   className={`${
                     card.type === "reference"
-                      ? "font-bold text-teal-700 dark:text-teal-300 text-base"
+                      ? "font-bold text-coral-700 dark:text-coral-300 text-base"
                       : "text-zinc-600 dark:text-zinc-300 text-xs leading-tight"
                   }`}
                 >

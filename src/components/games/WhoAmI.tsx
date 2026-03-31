@@ -3,6 +3,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { useGameSession } from "@/hooks/useGameSession";
 import type { GameProps } from "@/app/(dashboard)/games/[slug]/page";
+import Confetti from "@/components/Confetti";
 
 type Props = GameProps;
 
@@ -339,7 +340,7 @@ export default function WhoAmI({ gameId, userId, contentPack }: Props) {
         </p>
         <button
           onClick={startSession}
-          className="px-8 py-3 bg-teal-600 text-white rounded-xl text-lg font-semibold hover:bg-teal-700 transition"
+          className="px-8 py-3 bg-coral-600 text-white rounded-xl text-lg font-semibold hover:bg-coral-700 transition"
         >
           Start Game
         </button>
@@ -352,11 +353,13 @@ export default function WhoAmI({ gameId, userId, contentPack }: Props) {
     const maxScore = TOTAL_ROUNDS * POINTS_PER_CLUE[0];
     const pct = Math.round(((finalScore ?? score) / maxScore) * 100);
     return (
+      <>
+      <Confetti active={status === "finished"} />
       <div className="text-center py-12">
         <h2 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50 mb-4">
           Game Over!
         </h2>
-        <div className="text-6xl font-bold text-teal-600 dark:text-teal-400 mb-2">
+        <div className="text-6xl font-bold text-coral-600 dark:text-coral-400 mb-2">
           {finalScore ?? score}
         </div>
         <p className="text-zinc-500 dark:text-zinc-400 mb-1">
@@ -367,11 +370,12 @@ export default function WhoAmI({ gameId, userId, contentPack }: Props) {
         </p>
         <button
           onClick={handleRestart}
-          className="px-8 py-3 bg-teal-600 text-white rounded-xl text-lg font-semibold hover:bg-teal-700 transition"
+          className="px-8 py-3 bg-coral-600 text-white rounded-xl text-lg font-semibold hover:bg-coral-700 transition"
         >
           Play Again
         </button>
       </div>
+      </>
     );
   }
 
@@ -387,7 +391,7 @@ export default function WhoAmI({ gameId, userId, contentPack }: Props) {
           <span className="text-sm text-zinc-400 dark:text-zinc-500">
             Round {currentRound + 1}/{TOTAL_ROUNDS}
           </span>
-          <span className="text-sm font-medium text-teal-600 dark:text-teal-400">
+          <span className="text-sm font-medium text-coral-600 dark:text-coral-400">
             {score} pts
           </span>
         </div>
@@ -402,7 +406,7 @@ export default function WhoAmI({ gameId, userId, contentPack }: Props) {
           {!feedback && clueIndex < CLUES_PER_ROUND - 1 && (
             <button
               onClick={handleNextClue}
-              className="text-sm text-teal-600 dark:text-teal-400 hover:underline"
+              className="text-sm text-coral-600 dark:text-coral-400 hover:underline"
             >
               Need another clue? (-{(POINTS_PER_CLUE[clueIndex] ?? 20) - (POINTS_PER_CLUE[clueIndex + 1] ?? 20)} pts)
             </button>
@@ -419,7 +423,7 @@ export default function WhoAmI({ gameId, userId, contentPack }: Props) {
                   : "text-zinc-400 dark:text-zinc-500"
               }`}
             >
-              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 text-xs flex items-center justify-center font-medium mt-0.5">
+              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-coral-100 dark:bg-coral-900/30 text-coral-700 dark:text-coral-300 text-xs flex items-center justify-center font-medium mt-0.5">
                 {i + 1}
               </span>
               <p className="text-lg italic">&ldquo;{clue}&rdquo;</p>
@@ -441,7 +445,7 @@ export default function WhoAmI({ gameId, userId, contentPack }: Props) {
             <button
               key={option}
               onClick={() => handleGuess(option)}
-              className="p-4 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-50 font-medium hover:border-teal-300 dark:hover:border-teal-700 hover:shadow-md transition text-lg"
+              className="p-4 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-50 font-medium hover:border-coral-300 dark:hover:border-coral-700 hover:shadow-md transition text-lg"
             >
               {option}
             </button>
@@ -465,7 +469,7 @@ export default function WhoAmI({ gameId, userId, contentPack }: Props) {
           <div>
             <button
               onClick={handleNextRound}
-              className="px-8 py-3 bg-teal-600 text-white rounded-xl font-semibold hover:bg-teal-700 transition"
+              className="px-8 py-3 bg-coral-600 text-white rounded-xl font-semibold hover:bg-coral-700 transition"
             >
               {currentRound + 1 >= TOTAL_ROUNDS ? "See Results" : "Next Round"}
             </button>

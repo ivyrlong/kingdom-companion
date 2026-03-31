@@ -157,7 +157,7 @@ export default function ContentIngestion() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. WT Study — April 6"
-              className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-teal-500"
+              className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-coral-500"
             />
           </div>
           <div>
@@ -169,7 +169,7 @@ export default function ContentIngestion() {
               onChange={(e) =>
                 setSource(e.target.value as typeof source)
               }
-              className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-teal-500"
+              className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-coral-500"
             >
               <option value="WATCHTOWER">Watchtower Study</option>
               <option value="OCLM">Life & Ministry Workbook</option>
@@ -185,7 +185,7 @@ export default function ContentIngestion() {
               onChange={(e) =>
                 setContext(e.target.value as typeof context)
               }
-              className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-teal-500"
+              className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-coral-500"
             >
               <option value="MEETING_PREP">Meeting Preparation</option>
               <option value="MEETING_LIVE">Meeting Live</option>
@@ -203,7 +203,7 @@ export default function ContentIngestion() {
               type="date"
               value={weekOf}
               onChange={(e) => setWeekOf(e.target.value)}
-              className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-teal-500"
+              className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-coral-500"
             />
           </div>
         )}
@@ -217,7 +217,7 @@ export default function ContentIngestion() {
             onChange={(e) => setSourceText(e.target.value)}
             rows={12}
             placeholder="Paste the Watchtower Study article or OCLM workbook text here..."
-            className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-teal-500 font-mono text-sm"
+            className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-coral-500 font-mono text-sm"
           />
         </div>
 
@@ -230,7 +230,7 @@ export default function ContentIngestion() {
         <button
           onClick={handleParse}
           disabled={loading || !title.trim() || !sourceText.trim()}
-          className="px-6 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:bg-teal-400 text-white font-medium rounded-lg transition"
+          className="px-6 py-2.5 bg-coral-600 hover:bg-coral-700 disabled:bg-coral-400 text-white font-medium rounded-lg transition"
         >
           {loading ? "Extracting..." : "Extract Content"}
         </button>
@@ -261,7 +261,7 @@ export default function ContentIngestion() {
             setQuestions([]);
             setKeyPhrases([]);
           }}
-          className="px-6 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-medium rounded-lg transition"
+          className="px-6 py-2.5 bg-coral-600 hover:bg-coral-700 text-white font-medium rounded-lg transition"
         >
           Create Another
         </button>
@@ -354,7 +354,7 @@ export default function ContentIngestion() {
               { reference: "", text: "" },
             ])
           }
-          className="text-sm text-teal-600 hover:text-teal-700"
+          className="text-sm text-coral-600 hover:text-coral-700"
         >
           + Add scripture
         </button>
@@ -459,7 +459,7 @@ export default function ContentIngestion() {
               { question: "", answer: "", options: [] },
             ])
           }
-          className="text-sm text-teal-600 hover:text-teal-700"
+          className="text-sm text-coral-600 hover:text-coral-700"
         >
           + Add question
         </button>
@@ -473,7 +473,7 @@ export default function ContentIngestion() {
         <button
           onClick={handlePublish}
           disabled={loading}
-          className="px-6 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:bg-teal-400 text-white font-medium rounded-lg transition"
+          className="px-6 py-2.5 bg-coral-600 hover:bg-coral-700 disabled:bg-coral-400 text-white font-medium rounded-lg transition"
         >
           {loading ? "Publishing..." : "Publish Content Pack"}
         </button>
@@ -518,12 +518,12 @@ function EditableListSection({
         {items.map((item, i) => (
           <span
             key={i}
-            className="inline-flex items-center gap-1 px-2.5 py-1 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300 rounded-lg text-sm"
+            className="inline-flex items-center gap-1 px-2.5 py-1 bg-coral-50 dark:bg-coral-900/20 text-coral-700 dark:text-coral-300 rounded-lg text-sm"
           >
             {item}
             <button
               onClick={() => onRemove(i)}
-              className="text-teal-400 hover:text-red-500 ml-0.5"
+              className="text-coral-400 hover:text-red-500 ml-0.5"
             >
               x
             </button>
@@ -543,7 +543,7 @@ function EditableListSection({
         />
         <button
           onClick={addToList}
-          className="text-sm text-teal-600 hover:text-teal-700 px-2"
+          className="text-sm text-coral-600 hover:text-coral-700 px-2"
         >
           Add
         </button>

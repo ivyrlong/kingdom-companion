@@ -11,7 +11,7 @@ export default function Navbar() {
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
         <Link
           href="/"
-          className="text-xl font-bold text-teal-600 dark:text-teal-400"
+          className="text-xl font-bold text-coral-600 dark:text-coral-400"
         >
           Kingdom Companion
         </Link>
@@ -21,20 +21,20 @@ export default function Navbar() {
             <>
               <Link
                 href="/games"
-                className="text-sm text-zinc-600 dark:text-zinc-300 hover:text-teal-600 dark:hover:text-teal-400 transition"
+                className="text-sm text-zinc-600 dark:text-zinc-300 hover:text-coral-600 dark:hover:text-coral-400 transition"
               >
                 Games
               </Link>
               <Link
                 href="/profile"
-                className="text-sm text-zinc-600 dark:text-zinc-300 hover:text-teal-600 dark:hover:text-teal-400 transition"
+                className="text-sm text-zinc-600 dark:text-zinc-300 hover:text-coral-600 dark:hover:text-coral-400 transition"
               >
                 Profile
               </Link>
               {(session.user as { role?: string }).role === "ADMIN" && (
                 <Link
                   href="/admin"
-                  className="text-sm text-zinc-600 dark:text-zinc-300 hover:text-teal-600 dark:hover:text-teal-400 transition"
+                  className="text-sm text-zinc-600 dark:text-zinc-300 hover:text-coral-600 dark:hover:text-coral-400 transition"
                 >
                   Admin
                 </Link>
@@ -50,13 +50,13 @@ export default function Navbar() {
             <>
               <Link
                 href="/login"
-                className="text-sm text-zinc-600 dark:text-zinc-300 hover:text-teal-600 dark:hover:text-teal-400 transition"
+                className="text-sm text-zinc-600 dark:text-zinc-300 hover:text-coral-600 dark:hover:text-coral-400 transition"
               >
                 Sign In
               </Link>
               <Link
                 href="/register"
-                className="text-sm bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg transition"
+                className="text-sm bg-coral-600 hover:bg-coral-700 text-white px-4 py-2 rounded-lg transition"
               >
                 Get Started
               </Link>

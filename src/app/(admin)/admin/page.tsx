@@ -50,7 +50,7 @@ export default async function AdminPage() {
           </Link>
           <Link
             href="/admin/content"
-            className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg transition"
+            className="px-4 py-2 bg-coral-600 hover:bg-coral-700 text-white text-sm font-medium rounded-lg transition"
           >
             Content Manager
           </Link>
@@ -115,7 +115,7 @@ export default async function AdminPage() {
                     <td className="px-4 py-3 text-right text-zinc-600 dark:text-zinc-300">
                       {stat._count.id}
                     </td>
-                    <td className="px-4 py-3 text-right font-medium text-teal-600 dark:text-teal-400">
+                    <td className="px-4 py-3 text-right font-medium text-coral-600 dark:text-coral-400">
                       {Math.round(stat._avg.score ?? 0)}
                     </td>
                   </tr>
@@ -167,7 +167,7 @@ export default async function AdminPage() {
                     <td className="px-4 py-3 text-zinc-600 dark:text-zinc-300">
                       {s.game.title}
                     </td>
-                    <td className="px-4 py-3 text-right font-medium text-teal-600 dark:text-teal-400">
+                    <td className="px-4 py-3 text-right font-medium text-coral-600 dark:text-coral-400">
                       {s.score}
                     </td>
                     <td className="px-4 py-3 text-right">

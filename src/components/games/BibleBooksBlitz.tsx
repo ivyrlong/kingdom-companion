@@ -9,6 +9,7 @@ import {
 } from "@/lib/game-data/bible-books";
 
 import type { GameProps } from "@/app/(dashboard)/games/[slug]/page";
+import Confetti from "@/components/Confetti";
 
 type Props = GameProps;
 
@@ -122,7 +123,7 @@ export default function BibleBooksBlitz({ gameId, userId }: Props) {
             <button
               key={diff}
               onClick={() => startGame(diff)}
-              className="w-full p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl hover:border-teal-300 dark:hover:border-teal-700 transition text-left"
+              className="w-full p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl hover:border-coral-300 dark:hover:border-coral-700 transition text-left"
             >
               <span className="font-medium text-zinc-900 dark:text-zinc-100">
                 {label}
@@ -140,12 +141,14 @@ export default function BibleBooksBlitz({ gameId, userId }: Props) {
   // Finished screen
   if (status === "finished") {
     return (
+      <>
+      <Confetti active={status === "finished"} />
       <div className="text-center">
         <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50 mb-2">
           Completed!
         </h1>
         <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-8 max-w-sm mx-auto mb-6">
-          <p className="text-5xl font-bold text-teal-600 dark:text-teal-400 mb-4">
+          <p className="text-5xl font-bold text-coral-600 dark:text-coral-400 mb-4">
             {finalScore?.toLocaleString()}
           </p>
           <div className="space-y-2 text-sm text-zinc-500 dark:text-zinc-400">
@@ -165,7 +168,7 @@ export default function BibleBooksBlitz({ gameId, userId }: Props) {
               reset();
               startGame(difficulty);
             }}
-            className="px-6 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-medium rounded-lg transition"
+            className="px-6 py-2.5 bg-coral-600 hover:bg-coral-700 text-white font-medium rounded-lg transition"
           >
             Play Again
           </button>
@@ -177,6 +180,7 @@ export default function BibleBooksBlitz({ gameId, userId }: Props) {
           </button>
         </div>
       </div>
+      </>
     );
   }
 
@@ -206,7 +210,7 @@ export default function BibleBooksBlitz({ gameId, userId }: Props) {
       {/* Progress bar */}
       <div className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-full h-2 mb-4">
         <div
-          className="bg-teal-500 h-2 rounded-full transition-all duration-300"
+          className="bg-coral-500 h-2 rounded-full transition-all duration-300"
           style={{
             width: `${(playerOrder.length / correctOrder.length) * 100}%`,
           }}
@@ -220,11 +224,11 @@ export default function BibleBooksBlitz({ gameId, userId }: Props) {
 
       {/* Placed books */}
       {playerOrder.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mb-4 p-3 bg-teal-50 dark:bg-teal-900/10 rounded-xl min-h-[3rem]">
+        <div className="flex flex-wrap gap-1.5 mb-4 p-3 bg-coral-50 dark:bg-coral-900/10 rounded-xl min-h-[3rem]">
           {playerOrder.map((book, i) => (
             <span
               key={i}
-              className="px-2.5 py-1 bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 rounded-lg text-xs font-medium"
+              className="px-2.5 py-1 bg-coral-100 dark:bg-coral-900/30 text-coral-700 dark:text-coral-300 rounded-lg text-xs font-medium"
             >
               {book}
             </span>
@@ -241,7 +245,7 @@ export default function BibleBooksBlitz({ gameId, userId }: Props) {
             className={`px-3 py-2 rounded-lg text-sm font-medium transition ${
               lastWrong === book
                 ? "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 animate-pulse"
-                : "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:border-teal-300 dark:hover:border-teal-600 hover:bg-teal-50 dark:hover:bg-teal-900/20"
+                : "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:border-coral-300 dark:hover:border-coral-600 hover:bg-coral-50 dark:hover:bg-coral-900/20"
             }`}
           >
             {book}

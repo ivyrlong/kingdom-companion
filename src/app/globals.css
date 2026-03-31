@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #FAF8F6;
+  --foreground: #3C3F4A;
 }
 
 @theme inline {
@@ -10,6 +10,57 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* Faithful Companion palette — Cheerful Coral (primary) */
+  --color-coral-50: #FFF5F3;
+  --color-coral-100: #FFE8E3;
+  --color-coral-200: #FFD0C6;
+  --color-coral-300: #FFB5A5;
+  --color-coral-400: #FF9B87;
+  --color-coral-500: #FF8269;
+  --color-coral-600: #F0694E;
+  --color-coral-700: #D95238;
+  --color-coral-800: #B43D28;
+  --color-coral-900: #8F2E1D;
+
+  /* Spiritual Sky */
+  --color-sky-50: #F0FAFF;
+  --color-sky-100: #D6F0FC;
+  --color-sky-200: #ADE2FA;
+  --color-sky-300: #75CFF0;
+  --color-sky-400: #4ABDE8;
+  --color-sky-500: #2AA8D8;
+  --color-sky-600: #1C8BB8;
+
+  /* Faithful Violet */
+  --color-violet-50: #F5F1FE;
+  --color-violet-100: #EBE3FD;
+  --color-violet-200: #D5C7FB;
+  --color-violet-300: #AC94F4;
+  --color-violet-400: #9474EF;
+  --color-violet-500: #7C54EA;
+  --color-violet-600: #6539D4;
+
+  /* Golden Promise */
+  --color-golden-50: #FFFBEB;
+  --color-golden-100: #FEF3C7;
+  --color-golden-200: #FDE68A;
+  --color-golden-300: #F3B840;
+  --color-golden-400: #E5A320;
+  --color-golden-500: #D4900A;
+  --color-golden-600: #B87708;
+
+  /* Joyful Peach */
+  --color-peach-50: #FFF8F3;
+  --color-peach-100: #FFEEDD;
+  --color-peach-200: #FFD5B7;
+  --color-peach-300: #FFBD91;
+  --color-peach-400: #FFA56B;
+  --color-peach-500: #F08C4F;
+
+  /* Dove White & Scripture Slate */
+  --color-dove: #FAF8F6;
+  --color-slate-text: #3C3F4A;
 }
 
 @media (prefers-color-scheme: dark) {

@@ -52,11 +52,11 @@ export default function DailyTextForm() {
   return (
     <div>
       {success && (
-        <div className="bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 rounded-xl p-4 mb-6">
-          <p className="font-medium text-teal-700 dark:text-teal-300">
+        <div className="bg-coral-50 dark:bg-coral-900/20 border border-coral-200 dark:border-coral-800 rounded-xl p-4 mb-6">
+          <p className="font-medium text-coral-700 dark:text-coral-300">
             Published: {success.title}
           </p>
-          <p className="text-sm text-teal-600 dark:text-teal-400">
+          <p className="text-sm text-coral-600 dark:text-coral-400">
             {success.instancesCreated} game
             {success.instancesCreated !== 1 ? "s" : ""} auto-generated
           </p>
@@ -73,7 +73,7 @@ export default function DailyTextForm() {
             value={date}
             onChange={(e) => setDate(e.target.value)}
             required
-            className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-teal-500"
+            className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-coral-500"
           />
         </div>
 
@@ -87,7 +87,7 @@ export default function DailyTextForm() {
             onChange={(e) => setScriptureRef(e.target.value)}
             required
             placeholder='e.g. "Psalm 37:4"'
-            className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-teal-500"
+            className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-coral-500"
           />
         </div>
 
@@ -101,7 +101,7 @@ export default function DailyTextForm() {
             required
             rows={3}
             placeholder="Paste the verse text here..."
-            className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-teal-500"
+            className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-coral-500"
           />
         </div>
 
@@ -115,7 +115,7 @@ export default function DailyTextForm() {
             required
             rows={6}
             placeholder="Paste the Daily Text comment here..."
-            className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-teal-500 font-mono text-sm"
+            className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-coral-500 font-mono text-sm"
           />
         </div>
 
@@ -126,7 +126,7 @@ export default function DailyTextForm() {
         <button
           type="submit"
           disabled={loading}
-          className="px-6 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:bg-teal-400 text-white font-medium rounded-lg transition"
+          className="px-6 py-2.5 bg-coral-600 hover:bg-coral-700 disabled:bg-coral-400 text-white font-medium rounded-lg transition"
         >
           {loading ? "Publishing..." : "Publish Daily Text"}
         </button>

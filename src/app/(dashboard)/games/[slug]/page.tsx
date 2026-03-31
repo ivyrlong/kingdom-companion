@@ -92,7 +92,7 @@ export default async function GamePage({
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       {contentPackTitle && (
-        <p className="text-sm text-teal-600 dark:text-teal-400 mb-2">
+        <p className="text-sm text-coral-600 dark:text-coral-400 mb-2">
           {contentPackTitle}
         </p>
       )}
