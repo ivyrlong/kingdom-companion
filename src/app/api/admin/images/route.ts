@@ -22,6 +22,8 @@ const VALID_CATEGORIES = [
   "ILLUSTRATION",
   "OUTLINE",
   "PHOTO",
+  "COLORING_SVG",
+  "COLORING_OUTLINE",
 ] as const;
 
 const VALID_AGE_GROUPS = [

@@ -14,6 +14,7 @@ import Crossword from "@/components/games/Crossword";
 import Cryptogram from "@/components/games/Cryptogram";
 import Hangman from "@/components/games/Hangman";
 import JigsawPuzzle from "@/components/games/JigsawPuzzle";
+import ColoringPage from "@/components/games/ColoringPage";
 
 export interface ContentPackData {
   vocabulary: string[];
@@ -46,6 +47,7 @@ const GAME_COMPONENTS: Record<string, React.ComponentType<GameProps>> = {
   "cryptogram": Cryptogram,
   "hangman": Hangman,
   "jigsaw-puzzle": JigsawPuzzle as unknown as React.ComponentType<GameProps>,
+  "coloring-page": ColoringPage as unknown as React.ComponentType<GameProps>,
 };
 
 export default async function GamePage({
@@ -87,7 +89,22 @@ export default async function GamePage({
         keyPhrases: pack.keyPhrases as string[],
       };
       contentPackTitle = pack.title;
-      if (pack.images.length > 0) {
+
+      // For coloring pages, pick the right image category based on user age
+      if (slug === "coloring-page") {
+        const userAgeGroup = (session?.user as { ageGroup?: string })?.ageGroup;
+        const preferredCategory = userAgeGroup === "LITTLE_ONES" ? "COLORING_SVG" : "COLORING_OUTLINE";
+        const coloringImages = await prisma.imageAsset.findMany({
+          where: {
+            contentPackId: pack.id,
+            category: { in: ["COLORING_SVG", "COLORING_OUTLINE"] },
+          },
+          take: 2,
+        });
+        const picked = coloringImages.find((i) => i.category === preferredCategory)
+          ?? coloringImages[0];
+        if (picked) imageUrl = `/${picked.path}`;
+      } else if (pack.images.length > 0) {
         imageUrl = `/${pack.images[0].path}`;
       }
     }

@@ -214,11 +214,13 @@ model ImageAsset {
 }
 
 enum ImageCategory {
-  SCENE         // For hidden objects, backgrounds
-  CHARACTER     // Bible character illustrations
-  ILLUSTRATION  // General illustrations for puzzles
-  OUTLINE       // Line art for coloring pages
-  PHOTO         // Photos
+  SCENE              // For hidden objects, backgrounds
+  CHARACTER          // Bible character illustrations
+  ILLUSTRATION       // General illustrations for puzzles
+  OUTLINE            // Line art for coloring pages
+  PHOTO              // Photos
+  COLORING_SVG       // SVG files with regions for tap-to-fill (Little Ones)
+  COLORING_OUTLINE   // Raster outlines for freehand drawing (Youth/Adult)
 }
 
 // ─── Enums ─────────────────────────────────────────────────────────────

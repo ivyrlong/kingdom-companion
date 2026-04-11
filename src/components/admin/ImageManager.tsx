@@ -24,6 +24,8 @@ const CATEGORIES = [
   "ILLUSTRATION",
   "OUTLINE",
   "PHOTO",
+  "COLORING_SVG",
+  "COLORING_OUTLINE",
 ] as const;
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -32,6 +34,8 @@ const CATEGORY_LABELS: Record<string, string> = {
   ILLUSTRATION: "Illustration",
   OUTLINE: "Outline",
   PHOTO: "Photo",
+  COLORING_SVG: "Coloring SVG",
+  COLORING_OUTLINE: "Coloring Outline",
 };
 
 const AGE_GROUPS = ["LITTLE_ONES", "YOUTH", "ADULT", "FAMILY"] as const;
@@ -72,6 +76,10 @@ function categoryColor(category: string): string {
       return "bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300";
     case "PHOTO":
       return "bg-blue-100 dark:bg-blue-300/20 text-blue-700 dark:text-blue-300";
+    case "COLORING_SVG":
+      return "bg-pink-100 dark:bg-pink-300/20 text-pink-700 dark:text-pink-300";
+    case "COLORING_OUTLINE":
+      return "bg-indigo-100 dark:bg-indigo-300/20 text-indigo-700 dark:text-indigo-300";
     default:
       return "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400";
   }
@@ -293,7 +301,7 @@ export default function ImageManager() {
               className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-coral-500"
             >
               {(
-                ["SCENE", "CHARACTER", "ILLUSTRATION", "OUTLINE", "PHOTO"] as const
+                ["SCENE", "CHARACTER", "ILLUSTRATION", "OUTLINE", "PHOTO", "COLORING_SVG", "COLORING_OUTLINE"] as const
               ).map((c) => (
                 <option key={c} value={c}>
                   {CATEGORY_LABELS[c]}

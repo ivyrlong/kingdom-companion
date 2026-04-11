@@ -37,7 +37,6 @@ export default function ContentIngestion() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [newItem, setNewItem] = useState("");
 
   const handleParse = async () => {
     if (!sourceText.trim()) return;
@@ -134,11 +133,11 @@ export default function ContentIngestion() {
 
   const addToList = (
     list: string[],
-    setList: (v: string[]) => void
+    setList: (v: string[]) => void,
+    item: string,
   ) => {
-    if (newItem.trim() && !list.includes(newItem.trim())) {
-      setList([...list, newItem.trim()]);
-      setNewItem("");
+    if (item.trim() && !list.includes(item.trim())) {
+      setList([...list, item.trim()]);
     }
   };
 
@@ -295,13 +294,8 @@ export default function ContentIngestion() {
         title="Vocabulary"
         description={`${vocabulary.length} terms — used for Word Search`}
         items={vocabulary}
-        onAdd={(item) =>
-          !vocabulary.includes(item) && setVocabulary([...vocabulary, item])
-        }
         onRemove={(i) => setVocabulary(vocabulary.filter((_, idx) => idx !== i))}
-        newItem={newItem}
-        setNewItem={setNewItem}
-        addToList={() => addToList(vocabulary, setVocabulary)}
+        onAdd={(item) => addToList(vocabulary, setVocabulary, item)}
       />
 
       {/* Scriptures */}
@@ -365,13 +359,8 @@ export default function ContentIngestion() {
         title="Key People"
         description={`${keyPeople.length} names — used for Who Am I?`}
         items={keyPeople}
-        onAdd={(item) =>
-          !keyPeople.includes(item) && setKeyPeople([...keyPeople, item])
-        }
         onRemove={(i) => setKeyPeople(keyPeople.filter((_, idx) => idx !== i))}
-        newItem={newItem}
-        setNewItem={setNewItem}
-        addToList={() => addToList(keyPeople, setKeyPeople)}
+        onAdd={(item) => addToList(keyPeople, setKeyPeople, item)}
       />
 
       {/* Themes */}
@@ -379,13 +368,8 @@ export default function ContentIngestion() {
         title="Themes"
         description={`${themes.length} themes`}
         items={themes}
-        onAdd={(item) =>
-          !themes.includes(item) && setThemes([...themes, item])
-        }
         onRemove={(i) => setThemes(themes.filter((_, idx) => idx !== i))}
-        newItem={newItem}
-        setNewItem={setNewItem}
-        addToList={() => addToList(themes, setThemes)}
+        onAdd={(item) => addToList(themes, setThemes, item)}
       />
 
       {/* Key Phrases */}
@@ -393,16 +377,10 @@ export default function ContentIngestion() {
         title="Key Phrases"
         description={`${keyPhrases.length} phrases — used for Meeting Bingo, Tap When You Hear`}
         items={keyPhrases}
-        onAdd={(item) =>
-          !keyPhrases.includes(item) &&
-          setKeyPhrases([...keyPhrases, item])
-        }
         onRemove={(i) =>
           setKeyPhrases(keyPhrases.filter((_, idx) => idx !== i))
         }
-        newItem={newItem}
-        setNewItem={setNewItem}
-        addToList={() => addToList(keyPhrases, setKeyPhrases)}
+        onAdd={(item) => addToList(keyPhrases, setKeyPhrases, item)}
       />
 
       {/* Questions */}
@@ -495,19 +473,23 @@ function EditableListSection({
   description,
   items,
   onRemove,
-  newItem,
-  setNewItem,
-  addToList,
+  onAdd,
 }: {
   title: string;
   description: string;
   items: string[];
   onAdd: (item: string) => void;
   onRemove: (index: number) => void;
-  newItem: string;
-  setNewItem: (v: string) => void;
-  addToList: () => void;
 }) {
+  const [value, setValue] = useState("");
+
+  const handleAdd = () => {
+    if (value.trim()) {
+      onAdd(value.trim());
+      setValue("");
+    }
+  };
+
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-6">
       <h3 className="font-semibold text-zinc-900 dark:text-zinc-50 mb-1">
@@ -535,14 +517,14 @@ function EditableListSection({
       </div>
       <div className="flex gap-2">
         <input
-          value={newItem}
-          onChange={(e) => setNewItem(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && addToList()}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleAdd()}
           className="flex-1 px-2 py-1 rounded border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-sm"
           placeholder={`Add ${title.toLowerCase()}...`}
         />
         <button
-          onClick={addToList}
+          onClick={handleAdd}
           className="text-sm text-coral-600 hover:text-coral-700 px-2"
         >
           Add

@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import ContentIngestion from "@/components/admin/ContentIngestion";
+import ContentTabs from "@/components/admin/ContentTabs";
 
 export const metadata = { title: "Content Manager | Kingdom Companion" };
 
@@ -18,9 +18,9 @@ export default async function ContentPage() {
         Content Manager
       </h1>
       <p className="text-zinc-500 dark:text-zinc-400 mb-8">
-        Paste article text to auto-extract game content, then review and publish.
+        Create, review, edit, and manage game content packs.
       </p>
-      <ContentIngestion />
+      <ContentTabs />
     </div>
   );
 }

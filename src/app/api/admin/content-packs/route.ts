@@ -136,6 +136,8 @@ function isGameCompatible(
       return data.keyPhrases.length >= 9;
     case "tap-when-you-hear":
       return data.keyPhrases.length >= 5 || data.vocabulary.length >= 5;
+    case "coloring-page":
+      return false; // Requires uploaded images, not auto-generated
     default:
       return false;
   }

@@ -127,6 +127,14 @@ const games = [
     ageGroup: "LITTLE_ONES" as const,
     category: "Puzzle",
   },
+  {
+    slug: "coloring-page",
+    title: "Coloring Page",
+    description:
+      "Bring Bible scenes to life with color! Little ones can tap to fill, while older ones can draw freehand.",
+    ageGroup: "FAMILY" as const,
+    category: "Creative",
+  },
 ];
 
 const badges = [
