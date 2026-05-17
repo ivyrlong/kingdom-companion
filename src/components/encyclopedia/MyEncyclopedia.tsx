@@ -24,6 +24,27 @@ const CATEGORY_LABEL: Record<string, string> = {
   EVENTS: "Event",
 };
 
+// Locked (not-yet-collected) cards are styled by category only — never by the
+// entry's image — so concept entries ("faith") work as well as objects ("ark").
+const LOCKED: Record<string, { ring: string; label: string }> = {
+  PEOPLE: {
+    ring: "border-sky-300 dark:border-sky-500/40 bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-300",
+    label: "A person to find",
+  },
+  PLACES: {
+    ring: "border-golden-300 dark:border-golden-500/40 bg-golden-50 dark:bg-golden-500/10 text-golden-600 dark:text-golden-300",
+    label: "A place to find",
+  },
+  THINGS: {
+    ring: "border-coral-300 dark:border-coral-500/40 bg-coral-50 dark:bg-coral-500/10 text-coral-600 dark:text-coral-300",
+    label: "Something to find",
+  },
+  EVENTS: {
+    ring: "border-violet-300 dark:border-violet-500/40 bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-300",
+    label: "An event to find",
+  },
+};
+
 const GAME_TITLES: Record<string, string> = {
   "scripture-memory-match": "Scripture Memory Match",
   "who-am-i": "Who Am I?",
@@ -260,14 +281,17 @@ export default function MyEncyclopedia({
           {visibleItems.map((item) => {
             const collected = isCollected(item);
             if (!collected) {
+              const lk = LOCKED[item.category] ?? LOCKED.THINGS;
               return (
                 <div
                   key={item.id}
                   title="Keep playing to find this one!"
-                  className="aspect-square rounded-2xl border-2 border-dashed border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 flex flex-col items-center justify-center text-zinc-300 dark:text-zinc-600 select-none"
+                  className={`aspect-square rounded-2xl border-2 border-dashed flex flex-col items-center justify-center text-center px-2 select-none ${lk.ring}`}
                 >
-                  <span className="text-4xl font-black">?</span>
-                  <span className="text-[10px] mt-1 font-medium">Not found</span>
+                  <span className="text-4xl font-black opacity-60">?</span>
+                  <span className="text-[10px] mt-1 font-semibold">
+                    {lk.label}
+                  </span>
                 </div>
               );
             }
