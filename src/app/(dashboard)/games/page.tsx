@@ -3,7 +3,6 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import GameTabs from "@/components/GameTabs";
-import EncyclopediaProgressWidget from "@/components/encyclopedia/EncyclopediaProgressWidget";
 import type { EncyclopediaItem } from "@/components/encyclopedia/MyEncyclopedia";
 
 const AGE_GROUP_LABELS: Record<string, string> = {
@@ -43,18 +42,13 @@ export default async function GamesPage({
   const session = await auth();
   const userId = session?.user?.id;
   const userAgeGroup = (session?.user as { ageGroup?: string })?.ageGroup ?? "YOUTH";
-  const showEncyclopediaWidget =
+  const showEncyclopedia =
     !!userId && (userAgeGroup === "LITTLE_ONES" || userAgeGroup === "FAMILY");
 
-  // Encyclopedia (Little Ones / Family only) — progress widget + full book
-  let encyclopediaStats: {
-    collected: number;
-    total: number;
-    recent: { term: string; imageUrl: string | null }[];
-  } | null = null;
+  // Encyclopedia book data (Little Ones / Family only)
   let encyclopediaItems: EncyclopediaItem[] | null = null;
 
-  if (showEncyclopediaWidget) {
+  if (showEncyclopedia) {
     const [entries, collections] = await Promise.all([
       prisma.encyclopediaEntry.findMany({
         where: { isActive: true, ageGroup: { in: ["LITTLE_ONES", "FAMILY"] } },
@@ -88,20 +82,6 @@ export default async function GamesPage({
         source: c?.source ?? null,
       };
     });
-
-    const recent = [...collections]
-      .sort((a, b) => b.collectedAt.getTime() - a.collectedAt.getTime())
-      .slice(0, 4)
-      .map((c) => {
-        const e = entries.find((x) => x.id === c.entryId);
-        return { term: e?.term ?? "", imageUrl: e?.imageUrl ?? null };
-      });
-
-    encyclopediaStats = {
-      collected: collections.length,
-      total: entries.length,
-      recent,
-    };
   }
 
   // Evergreen games (engines without content packs — classic games)
@@ -220,14 +200,6 @@ export default async function GamesPage({
       <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50 mb-8">
         Explore
       </h1>
-
-      {encyclopediaStats && (
-        <EncyclopediaProgressWidget
-          collected={encyclopediaStats.collected}
-          total={encyclopediaStats.total}
-          recent={encyclopediaStats.recent}
-        />
-      )}
 
       <GameTabs
         evergreen={evergreenCards}
