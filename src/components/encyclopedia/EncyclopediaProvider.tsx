@@ -74,12 +74,12 @@ export default function EncyclopediaProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const { data: session, status } = useSession();
-  const userAgeGroup = (session?.user as { ageGroup?: string } | undefined)
-    ?.ageGroup;
-  const enabled =
-    status === "authenticated" &&
-    (userAgeGroup === "LITTLE_ONES" || userAgeGroup === "FAMILY");
+  const { status } = useSession();
+  // Authoritative gating lives in /api/encyclopedia: it returns entries only
+  // for users who actually receive curated findings (per their capabilities),
+  // so here we just need to be signed in. Non-participants get an empty set
+  // and nothing is ever discovered.
+  const enabled = status === "authenticated";
 
   const [entries, setEntries] = useState<EncyclopediaEntry[]>([]);
   const [collectedIds, setCollectedIds] = useState<Set<string>>(new Set());

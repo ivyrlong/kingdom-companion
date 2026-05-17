@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import {
+  getEncyclopediaCapabilities,
+  curatedAgeFilter,
+} from "@/lib/encyclopedia";
 
 /**
  * GET /api/encyclopedia
- * Returns the active entries for the current user's age group, plus the IDs they've collected.
+ * Curated entries the current user should receive (per their capabilities),
+ * plus the IDs they've collected. Returns empty when the user doesn't receive
+ * curated findings (e.g. an Adult who hasn't opted in).
  */
 export async function GET() {
   const session = await auth();
@@ -13,20 +19,31 @@ export async function GET() {
   }
 
   const userId = session.user.id;
-  const userAgeGroup =
-    (session.user as { ageGroup?: string }).ageGroup || "FAMILY";
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      ageGroup: true,
+      profile: {
+        select: { encyclopediaMode: true, receiveCuratedFindings: true },
+      },
+    },
+  });
 
-  // For now we serve LITTLE_ONES entries to LITTLE_ONES users only.
-  // FAMILY accounts also see them so siblings can collaborate.
-  const showEntries = userAgeGroup === "LITTLE_ONES" || userAgeGroup === "FAMILY";
+  const caps = getEncyclopediaCapabilities(
+    user?.ageGroup,
+    user?.profile ?? undefined,
+  );
 
-  if (!showEntries) {
+  if (!caps.enabled || !caps.receivesCurated) {
     return NextResponse.json({ entries: [], collected: [] });
   }
 
   const [entries, collections] = await Promise.all([
     prisma.encyclopediaEntry.findMany({
-      where: { isActive: true, ageGroup: { in: ["LITTLE_ONES", "FAMILY"] } },
+      where: {
+        isActive: true,
+        ageGroup: { in: curatedAgeFilter(user?.ageGroup) as never },
+      },
       orderBy: { term: "asc" },
     }),
     prisma.userEncyclopediaCollection.findMany({

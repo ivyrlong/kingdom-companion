@@ -20,6 +20,12 @@ export default function Navbar() {
           {status === "authenticated" ? (
             <>
               <Link
+                href="/"
+                className="text-sm text-zinc-600 dark:text-zinc-300 hover:text-coral-600 dark:hover:text-coral-400 transition"
+              >
+                Today
+              </Link>
+              <Link
                 href="/games"
                 className="text-sm text-zinc-600 dark:text-zinc-300 hover:text-coral-600 dark:hover:text-coral-400 transition"
               >

@@ -4,24 +4,31 @@ import { useState } from "react";
 import GameCardGrid, { type GameCard } from "@/components/GameCardGrid";
 import MyEncyclopedia, {
   type EncyclopediaItem,
+  type EncyclopediaCaps,
 } from "@/components/encyclopedia/MyEncyclopedia";
+
+export interface EncyclopediaBundle {
+  items: EncyclopediaItem[];
+  caps: EncyclopediaCaps;
+}
 
 export default function ExploreTabs({
   games,
-  encyclopediaItems,
+  encyclopedia,
 }: {
   games: GameCard[];
-  encyclopediaItems?: EncyclopediaItem[] | null;
+  encyclopedia?: EncyclopediaBundle | null;
 }) {
-  const hasEncyclopedia = !!encyclopediaItems;
+  const hasEncyclopedia = !!encyclopedia;
   const [tab, setTab] = useState<"games" | "encyclopedia">("games");
   const isEnc = hasEncyclopedia && tab === "encyclopedia";
 
-  const newCount = encyclopediaItems
-    ? encyclopediaItems.filter((i) => i.collectedAt && !i.viewedAt).length
+  const newCount = encyclopedia
+    ? encyclopedia.items.filter(
+        (i) => i.kind === "curated" && i.collectedAt && !i.viewedAt,
+      ).length
     : 0;
 
-  // No encyclopedia for this age group — just the games, no tab bar needed.
   if (!hasEncyclopedia) {
     return games.length === 0 ? (
       <p className="text-center text-zinc-500 dark:text-zinc-400 text-lg py-12">
@@ -56,7 +63,7 @@ export default function ExploreTabs({
               : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
           }`}
         >
-          My Encyclopedia
+          {encyclopedia.caps.name}
           {newCount > 0 && (
             <span className="ml-1.5 text-xs bg-coral-600 text-white px-1.5 py-0.5 rounded-full">
               {newCount}
@@ -66,7 +73,10 @@ export default function ExploreTabs({
       </div>
 
       {isEnc ? (
-        <MyEncyclopedia items={encyclopediaItems ?? []} />
+        <MyEncyclopedia
+          items={encyclopedia.items}
+          caps={encyclopedia.caps}
+        />
       ) : games.length === 0 ? (
         <p className="text-center text-zinc-500 dark:text-zinc-400 text-lg py-12">
           No games available yet. Check back soon!

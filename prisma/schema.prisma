@@ -26,6 +26,7 @@ model User {
   gameSessions            GameSession[]
   scores                  Score[]
   encyclopediaCollections UserEncyclopediaCollection[]
+  personalEntries         PersonalEntry[]
 }
 
 model Account {
@@ -74,6 +75,11 @@ model Profile {
   xp           Int      @default(0)
   level        Int      @default(1)
   congregation String?
+  // Encyclopedia preferences. Mode applies to Youth/Family (Little Ones is
+  // always playful, Adult always notebook). receiveCuratedFindings is the
+  // Adult opt-in for admin-curated discoveries (off by default).
+  encyclopediaMode       EncyclopediaMode @default(PLAYFUL)
+  receiveCuratedFindings Boolean          @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -259,6 +265,29 @@ enum EncyclopediaCategory {
   PLACES
   THINGS
   EVENTS
+}
+
+enum EncyclopediaMode {
+  PLAYFUL
+  STUDY
+}
+
+// PersonalEntry = a user-authored encyclopedia entry (Youth / Family / Adult).
+// Lives alongside collected curated entries in the same book.
+model PersonalEntry {
+  id        String               @id @default(cuid())
+  userId    String
+  term      String
+  category  EncyclopediaCategory @default(THINGS)
+  bibleRef  String?
+  note      String
+  imageUrl  String?
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 enum ImageCategory {
