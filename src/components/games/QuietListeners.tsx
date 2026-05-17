@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import type { GameProps } from "@/app/(dashboard)/games/[slug]/page";
-import { useEncyclopedia } from "@/components/encyclopedia/EncyclopediaProvider";
 
 interface TrackedWord {
   label: string;
@@ -61,7 +60,6 @@ export default function QuietListeners({
   contentPack,
 }: GameProps) {
   const [tappedIndex, setTappedIndex] = useState<number | null>(null);
-  const { discover } = useEncyclopedia();
 
   // Build the full list of trackable words: core 3 + optional content pack words
   const trackedWords: TrackedWord[] = (() => {
@@ -115,10 +113,8 @@ export default function QuietListeners({
       setCounts((prev) => ({ ...prev, [label]: (prev[label] ?? 0) + 1 }));
       setTappedIndex(index);
       setTimeout(() => setTappedIndex(null), 150);
-      // Encyclopedia discovery — try the tapped word
-      discover(label, "quiet-listeners");
     },
-    [discover]
+    []
   );
 
   const decrement = useCallback((label: string) => {
