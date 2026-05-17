@@ -3,7 +3,9 @@ export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
-import EncyclopediaBook from "@/components/encyclopedia/EncyclopediaBook";
+import MyEncyclopedia, {
+  type EncyclopediaItem,
+} from "@/components/encyclopedia/MyEncyclopedia";
 
 export const metadata = { title: "My Encyclopedia | Kingdom Companion" };
 
@@ -38,24 +40,32 @@ export default async function EncyclopediaPage() {
     }),
     prisma.userEncyclopediaCollection.findMany({
       where: { userId },
-      select: { entryId: true, collectedAt: true, source: true },
+      select: {
+        entryId: true,
+        collectedAt: true,
+        viewedAt: true,
+        source: true,
+      },
     }),
   ]);
 
-  const collectedMap = new Map(
-    collections.map((c) => [c.entryId, c.collectedAt.toISOString()]),
-  );
+  const byEntry = new Map(collections.map((c) => [c.entryId, c]));
 
-  const items = entries.map((e) => ({
-    id: e.id,
-    slug: e.slug,
-    term: e.term,
-    definition: e.definition,
-    imageUrl: e.imageUrl,
-    bibleRef: e.bibleRef,
-    category: e.category as "PEOPLE" | "PLACES" | "THINGS" | "EVENTS",
-    collectedAt: collectedMap.get(e.id) ?? null,
-  }));
+  const items: EncyclopediaItem[] = entries.map((e) => {
+    const c = byEntry.get(e.id);
+    return {
+      id: e.id,
+      slug: e.slug,
+      term: e.term,
+      definition: e.definition,
+      imageUrl: e.imageUrl,
+      bibleRef: e.bibleRef,
+      category: e.category as EncyclopediaItem["category"],
+      collectedAt: c ? c.collectedAt.toISOString() : null,
+      viewedAt: c?.viewedAt ? c.viewedAt.toISOString() : null,
+      source: c?.source ?? null,
+    };
+  });
 
-  return <EncyclopediaBook items={items} />;
+  return <MyEncyclopedia items={items} />;
 }

@@ -243,8 +243,9 @@ model UserEncyclopediaCollection {
   id          String   @id @default(cuid())
   userId      String
   entryId     String
-  collectedAt DateTime @default(now())
-  source      String?  // game slug where it was discovered
+  collectedAt DateTime  @default(now())
+  viewedAt    DateTime? // first time opened in the book; null = still "New"
+  source      String?   // game slug where it was discovered
 
   user  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   entry EncyclopediaEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)

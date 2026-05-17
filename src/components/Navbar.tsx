@@ -23,18 +23,8 @@ export default function Navbar() {
                 href="/games"
                 className="text-sm text-zinc-600 dark:text-zinc-300 hover:text-coral-600 dark:hover:text-coral-400 transition"
               >
-                Games
+                Explore
               </Link>
-              {(["LITTLE_ONES", "FAMILY"].includes(
-                (session.user as { ageGroup?: string }).ageGroup ?? "",
-              )) && (
-                <Link
-                  href="/encyclopedia"
-                  className="text-sm text-zinc-600 dark:text-zinc-300 hover:text-coral-600 dark:hover:text-coral-400 transition"
-                >
-                  Book
-                </Link>
-              )}
               <Link
                 href="/profile"
                 className="text-sm text-zinc-600 dark:text-zinc-300 hover:text-coral-600 dark:hover:text-coral-400 transition"

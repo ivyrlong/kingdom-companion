@@ -3,6 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import MyEncyclopedia, {
+  type EncyclopediaItem,
+} from "@/components/encyclopedia/MyEncyclopedia";
 
 const AGE_GROUP_LABELS: Record<string, string> = {
   LITTLE_ONES: "Little Ones",
@@ -30,6 +33,7 @@ interface GameTabsProps {
   weekOffset: number;
   weekLabel: string;
   userAgeGroup: string;
+  encyclopediaItems?: EncyclopediaItem[] | null;
 }
 
 const TABS = [
@@ -72,9 +76,10 @@ export default function GameTabs({
   weekOffset,
   weekLabel,
   userAgeGroup,
+  encyclopediaItems,
 }: GameTabsProps) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<TabKey>(
+  const [activeTab, setActiveTab] = useState<TabKey | "encyclopedia">(
     daily.length > 0 ? "daily" : "evergreen"
   );
 
@@ -86,8 +91,17 @@ export default function GameTabs({
     live: meetingLive,
   };
 
-  const cards = tabData[activeTab];
-  const showWeekNav = activeTab === "prep" || activeTab === "live";
+  // "My Encyclopedia" tab only exists for age groups that collect (the page
+  // passes items only for Little Ones / Family; null otherwise).
+  const showEncyclopedia = !!encyclopediaItems;
+  const newCount = encyclopediaItems
+    ? encyclopediaItems.filter((i) => i.collectedAt && !i.viewedAt).length
+    : 0;
+
+  const isEncyclopedia = activeTab === "encyclopedia";
+  const cards = isEncyclopedia ? [] : tabData[activeTab as TabKey];
+  const showWeekNav =
+    !isEncyclopedia && (activeTab === "prep" || activeTab === "live");
 
   const navigateWeek = (direction: -1 | 1) => {
     const newOffset = weekOffset + direction;
@@ -101,9 +115,11 @@ export default function GameTabs({
         <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${ageGroupColor(userAgeGroup)}`}>
           {AGE_GROUP_LABELS[userAgeGroup] ?? userAgeGroup}
         </span>
-        <span className="text-xs text-zinc-400 dark:text-zinc-500">
-          Showing all games
-        </span>
+        {!isEncyclopedia && (
+          <span className="text-xs text-zinc-400 dark:text-zinc-500">
+            Showing all games
+          </span>
+        )}
       </div>
 
       {/* Tabs */}
@@ -127,6 +143,24 @@ export default function GameTabs({
             </button>
           );
         })}
+        {showEncyclopedia && (
+          <button
+            key="encyclopedia"
+            onClick={() => setActiveTab("encyclopedia")}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition ${
+              isEncyclopedia
+                ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-sm"
+                : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
+            }`}
+          >
+            My Encyclopedia
+            {newCount > 0 && (
+              <span className="ml-1.5 text-xs bg-coral-600 text-white px-1.5 py-0.5 rounded-full">
+                {newCount}
+              </span>
+            )}
+          </button>
+        )}
       </div>
 
       {/* Week navigation */}
@@ -160,11 +194,13 @@ export default function GameTabs({
         </div>
       )}
 
-      {/* Cards */}
-      {cards.length === 0 ? (
+      {/* Body: encyclopedia book or the game cards grid */}
+      {isEncyclopedia ? (
+        <MyEncyclopedia items={encyclopediaItems ?? []} />
+      ) : cards.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-zinc-500 dark:text-zinc-400 text-lg">
-            {EMPTY_MESSAGES[activeTab]}
+            {EMPTY_MESSAGES[activeTab as TabKey]}
           </p>
         </div>
       ) : (

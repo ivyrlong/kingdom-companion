@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import GameTabs from "@/components/GameTabs";
 import EncyclopediaProgressWidget from "@/components/encyclopedia/EncyclopediaProgressWidget";
+import type { EncyclopediaItem } from "@/components/encyclopedia/MyEncyclopedia";
 
 const AGE_GROUP_LABELS: Record<string, string> = {
   LITTLE_ONES: "Little Ones (5-8)",
@@ -45,35 +46,61 @@ export default async function GamesPage({
   const showEncyclopediaWidget =
     !!userId && (userAgeGroup === "LITTLE_ONES" || userAgeGroup === "FAMILY");
 
-  // Encyclopedia progress (Little Ones / Family only)
+  // Encyclopedia (Little Ones / Family only) — progress widget + full book
   let encyclopediaStats: {
     collected: number;
     total: number;
     recent: { term: string; imageUrl: string | null }[];
   } | null = null;
+  let encyclopediaItems: EncyclopediaItem[] | null = null;
 
   if (showEncyclopediaWidget) {
-    const [total, recentCollections] = await Promise.all([
-      prisma.encyclopediaEntry.count({
+    const [entries, collections] = await Promise.all([
+      prisma.encyclopediaEntry.findMany({
         where: { isActive: true, ageGroup: { in: ["LITTLE_ONES", "FAMILY"] } },
+        orderBy: { term: "asc" },
       }),
       prisma.userEncyclopediaCollection.findMany({
         where: { userId },
-        orderBy: { collectedAt: "desc" },
-        take: 4,
-        include: { entry: { select: { term: true, imageUrl: true } } },
+        select: {
+          entryId: true,
+          collectedAt: true,
+          viewedAt: true,
+          source: true,
+        },
       }),
     ]);
-    const collected = await prisma.userEncyclopediaCollection.count({
-      where: { userId },
+
+    const byEntry = new Map(collections.map((c) => [c.entryId, c]));
+
+    encyclopediaItems = entries.map((e) => {
+      const c = byEntry.get(e.id);
+      return {
+        id: e.id,
+        slug: e.slug,
+        term: e.term,
+        definition: e.definition,
+        imageUrl: e.imageUrl,
+        bibleRef: e.bibleRef,
+        category: e.category as EncyclopediaItem["category"],
+        collectedAt: c ? c.collectedAt.toISOString() : null,
+        viewedAt: c?.viewedAt ? c.viewedAt.toISOString() : null,
+        source: c?.source ?? null,
+      };
     });
+
+    const recent = [...collections]
+      .sort((a, b) => b.collectedAt.getTime() - a.collectedAt.getTime())
+      .slice(0, 4)
+      .map((c) => {
+        const e = entries.find((x) => x.id === c.entryId);
+        return { term: e?.term ?? "", imageUrl: e?.imageUrl ?? null };
+      });
+
     encyclopediaStats = {
-      collected,
-      total,
-      recent: recentCollections.map((c) => ({
-        term: c.entry.term,
-        imageUrl: c.entry.imageUrl,
-      })),
+      collected: collections.length,
+      total: entries.length,
+      recent,
     };
   }
 
@@ -191,7 +218,7 @@ export default async function GamesPage({
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50 mb-8">
-        Games
+        Explore
       </h1>
 
       {encyclopediaStats && (
@@ -210,6 +237,7 @@ export default async function GamesPage({
         weekOffset={weekOffset}
         weekLabel={weekLabel}
         userAgeGroup={userAgeGroup}
+        encyclopediaItems={encyclopediaItems}
       />
     </div>
   );
