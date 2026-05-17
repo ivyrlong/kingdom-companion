@@ -5,6 +5,7 @@ import { useGameSession } from "@/hooks/useGameSession";
 import { getRandomPairs, type ScripturePair } from "@/lib/game-data/scripture-pairs";
 import type { GameProps } from "@/app/(dashboard)/games/[slug]/page";
 import Confetti from "@/components/Confetti";
+import { useEncyclopedia } from "@/components/encyclopedia/EncyclopediaProvider";
 
 type Props = GameProps;
 
@@ -38,6 +39,7 @@ function shuffleCards(cards: Card[]): Card[] {
 export default function ScriptureMemoryMatch({ gameId, userId, contentPack }: Props) {
   const { status, finalScore, startSession, endSession, reset } =
     useGameSession({ gameId, userId });
+  const { discover } = useEncyclopedia();
 
   const [pairCount, setPairCount] = useState<PairCount>(4);
   const [cards, setCards] = useState<Card[]>([]);
@@ -132,6 +134,10 @@ export default function ScriptureMemoryMatch({ gameId, userId, contentPack }: Pr
           first.pairId === second.pairId &&
           first.type !== second.type
         ) {
+          // Encyclopedia discovery on match — try the reference text
+          const refCard = first.type === "reference" ? first : second;
+          discover(refCard.content, "scripture-memory-match");
+
           // Match found
           setTimeout(() => {
             setCards((prev) =>
@@ -181,6 +187,7 @@ export default function ScriptureMemoryMatch({ gameId, userId, contentPack }: Pr
       timeElapsed,
       moves,
       endSession,
+      discover,
     ]
   );
 

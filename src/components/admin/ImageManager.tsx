@@ -9,7 +9,7 @@ interface ImageAsset {
   filename: string;
   path: string;
   altText: string;
-  category: string;
+  categories: string[];
   ageGroup: string;
   tags: string[];
   width: number | null;
@@ -17,8 +17,7 @@ interface ImageAsset {
   createdAt: string;
 }
 
-const CATEGORIES = [
-  "All",
+const ALL_CATEGORIES = [
   "SCENE",
   "CHARACTER",
   "ILLUSTRATION",
@@ -27,6 +26,8 @@ const CATEGORIES = [
   "COLORING_SVG",
   "COLORING_OUTLINE",
 ] as const;
+
+const FILTER_TABS = ["All", ...ALL_CATEGORIES] as const;
 
 const CATEGORY_LABELS: Record<string, string> = {
   SCENE: "Scene",
@@ -47,7 +48,7 @@ const AGE_GROUP_LABELS: Record<string, string> = {
   FAMILY: "Family",
 };
 
-/* ── Badge helpers (matches GameTabs color scheme) ─────────────────── */
+/* ── Badge helpers ─────────────────────────────────────────────────── */
 
 function ageGroupColor(ageGroup: string): string {
   switch (ageGroup) {
@@ -92,11 +93,12 @@ export default function ImageManager() {
   const [images, setImages] = useState<ImageAsset[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState<string>("All");
+  const [error, setError] = useState("");
 
   /* State – upload form */
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
-  const [category, setCategory] = useState<string>("SCENE");
+  const [uploadCategories, setUploadCategories] = useState<string[]>(["SCENE"]);
   const [ageGroup, setAgeGroup] = useState<string>("FAMILY");
   const [altText, setAltText] = useState("");
   const [tags, setTags] = useState("");
@@ -106,21 +108,25 @@ export default function ImageManager() {
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  /* State – lightbox */
+  /* State – lightbox & edit */
   const [lightbox, setLightbox] = useState<ImageAsset | null>(null);
+  const [editing, setEditing] = useState<ImageAsset | null>(null);
 
   /* ── Fetch images ────────────────────────────────────────────────── */
 
   const fetchImages = useCallback(async () => {
     setLoading(true);
+    setError("");
     try {
       const res = await fetch("/api/admin/images");
       if (res.ok) {
         const data = await res.json();
         setImages(data);
+      } else {
+        setError("Failed to load images.");
       }
     } catch {
-      /* ignore – will show empty state */
+      setError("Failed to load images.");
     } finally {
       setLoading(false);
     }
@@ -158,15 +164,26 @@ export default function ImageManager() {
     [handleFileSelect],
   );
 
+  const toggleUploadCategory = (cat: string) => {
+    setUploadCategories((prev) =>
+      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat],
+    );
+  };
+
   /* ── Upload ──────────────────────────────────────────────────────── */
 
   const handleUpload = async () => {
     if (!file) return;
+    if (uploadCategories.length === 0) {
+      setError("Pick at least one category before uploading.");
+      return;
+    }
     setUploading(true);
+    setError("");
 
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("category", category);
+    formData.append("categories", JSON.stringify(uploadCategories));
     formData.append("ageGroup", ageGroup);
     formData.append("altText", altText);
     formData.append(
@@ -192,7 +209,12 @@ export default function ImageManager() {
         setTags("");
         if (fileInputRef.current) fileInputRef.current.value = "";
         fetchImages();
+      } else {
+        const data = await res.json().catch(() => null);
+        setError(data?.error || "Upload failed.");
       }
+    } catch {
+      setError("Upload failed.");
     } finally {
       setUploading(false);
     }
@@ -202,10 +224,52 @@ export default function ImageManager() {
 
   const handleDelete = async (id: string) => {
     if (!window.confirm("Delete this image? This cannot be undone.")) return;
-    const res = await fetch(`/api/admin/images?id=${id}`, { method: "DELETE" });
-    if (res.ok) {
-      setImages((prev) => prev.filter((img) => img.id !== id));
-      if (lightbox?.id === id) setLightbox(null);
+    try {
+      const res = await fetch(`/api/admin/images/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setImages((prev) => prev.filter((img) => img.id !== id));
+        if (lightbox?.id === id) setLightbox(null);
+        if (editing?.id === id) setEditing(null);
+      } else {
+        setError("Failed to delete image.");
+      }
+    } catch {
+      setError("Failed to delete image.");
+    }
+  };
+
+  /* ── Save edit ───────────────────────────────────────────────────── */
+
+  const handleSaveEdit = async (updated: ImageAsset) => {
+    if (updated.categories.length === 0) {
+      setError("An image must have at least one category.");
+      return;
+    }
+    try {
+      const res = await fetch(`/api/admin/images/${updated.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          categories: updated.categories,
+          ageGroup: updated.ageGroup,
+          altText: updated.altText,
+          tags: updated.tags,
+        }),
+      });
+      if (res.ok) {
+        const saved = await res.json();
+        setImages((prev) =>
+          prev.map((img) =>
+            img.id === saved.id ? { ...img, ...saved, tags: saved.tags ?? [] } : img,
+          ),
+        );
+        setEditing(null);
+      } else {
+        const data = await res.json().catch(() => null);
+        setError(data?.error || "Failed to save image.");
+      }
+    } catch {
+      setError("Failed to save image.");
     }
   };
 
@@ -214,12 +278,24 @@ export default function ImageManager() {
   const filtered =
     activeCategory === "All"
       ? images
-      : images.filter((img) => img.category === activeCategory);
+      : images.filter((img) => img.categories.includes(activeCategory));
 
   /* ── Render ──────────────────────────────────────────────────────── */
 
   return (
     <div className="space-y-10">
+      {error && (
+        <div className="rounded-lg border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 p-3 text-sm text-red-700 dark:text-red-300 flex justify-between items-start">
+          <span>{error}</span>
+          <button
+            onClick={() => setError("")}
+            className="ml-4 text-xs underline hover:no-underline"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* ─── Upload Section ───────────────────────────────────────── */}
       <section className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-6">
         <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50 mb-4">
@@ -290,73 +366,81 @@ export default function ImageManager() {
         </div>
 
         {/* Form fields */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+        <div className="mt-4 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-              Category
+            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+              Categories <span className="text-zinc-400">(pick one or more)</span>
             </label>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-coral-500"
-            >
-              {(
-                ["SCENE", "CHARACTER", "ILLUSTRATION", "OUTLINE", "PHOTO", "COLORING_SVG", "COLORING_OUTLINE"] as const
-              ).map((c) => (
-                <option key={c} value={c}>
-                  {CATEGORY_LABELS[c]}
-                </option>
-              ))}
-            </select>
+            <div className="flex flex-wrap gap-2">
+              {ALL_CATEGORIES.map((c) => {
+                const active = uploadCategories.includes(c);
+                return (
+                  <button
+                    type="button"
+                    key={c}
+                    onClick={() => toggleUploadCategory(c)}
+                    className={`text-xs font-medium px-3 py-1.5 rounded-full transition border ${
+                      active
+                        ? `${categoryColor(c)} border-transparent`
+                        : "bg-white dark:bg-zinc-800 border-zinc-300 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-coral-300"
+                    }`}
+                  >
+                    {CATEGORY_LABELS[c]}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-              Age Group
-            </label>
-            <select
-              value={ageGroup}
-              onChange={(e) => setAgeGroup(e.target.value)}
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-coral-500"
-            >
-              {AGE_GROUPS.map((ag) => (
-                <option key={ag} value={ag}>
-                  {AGE_GROUP_LABELS[ag]}
-                </option>
-              ))}
-            </select>
-          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                Age Group
+              </label>
+              <select
+                value={ageGroup}
+                onChange={(e) => setAgeGroup(e.target.value)}
+                className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-coral-500"
+              >
+                {AGE_GROUPS.map((ag) => (
+                  <option key={ag} value={ag}>
+                    {AGE_GROUP_LABELS[ag]}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          <div>
-            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-              Alt Text
-            </label>
-            <input
-              type="text"
-              value={altText}
-              onChange={(e) => setAltText(e.target.value)}
-              placeholder="Describe the image..."
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-coral-500"
-            />
-          </div>
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                Alt Text
+              </label>
+              <input
+                type="text"
+                value={altText}
+                onChange={(e) => setAltText(e.target.value)}
+                placeholder="Describe the image..."
+                className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-coral-500"
+              />
+            </div>
 
-          <div>
-            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-              Tags
-            </label>
-            <input
-              type="text"
-              value={tags}
-              onChange={(e) => setTags(e.target.value)}
-              placeholder="e.g. noah, ark, animals"
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-coral-500"
-            />
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                Tags
+              </label>
+              <input
+                type="text"
+                value={tags}
+                onChange={(e) => setTags(e.target.value)}
+                placeholder="e.g. noah, ark, animals"
+                className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-coral-500"
+              />
+            </div>
           </div>
         </div>
 
         <button
           onClick={handleUpload}
-          disabled={!file || uploading}
+          disabled={!file || uploading || uploadCategories.length === 0}
           className="mt-4 px-6 py-2.5 bg-coral-600 hover:bg-coral-700 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 text-white disabled:text-zinc-500 dark:disabled:text-zinc-500 text-sm font-medium rounded-lg transition"
         >
           {uploading ? (
@@ -393,11 +477,11 @@ export default function ImageManager() {
       <section>
         {/* Category filter tabs */}
         <div className="flex gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1 mb-6 w-fit flex-wrap">
-          {CATEGORIES.map((cat) => {
+          {FILTER_TABS.map((cat) => {
             const count =
               cat === "All"
                 ? images.length
-                : images.filter((img) => img.category === cat).length;
+                : images.filter((img) => img.categories.includes(cat)).length;
             return (
               <button
                 key={cat}
@@ -482,11 +566,14 @@ export default function ImageManager() {
                   </p>
 
                   <div className="flex flex-wrap gap-1 mb-2">
-                    <span
-                      className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${categoryColor(img.category)}`}
-                    >
-                      {CATEGORY_LABELS[img.category] ?? img.category}
-                    </span>
+                    {img.categories.map((c) => (
+                      <span
+                        key={c}
+                        className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${categoryColor(c)}`}
+                      >
+                        {CATEGORY_LABELS[c] ?? c}
+                      </span>
+                    ))}
                     <span
                       className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${ageGroupColor(img.ageGroup)}`}
                     >
@@ -508,13 +595,21 @@ export default function ImageManager() {
                     </div>
                   )}
 
-                  {/* Delete */}
-                  <button
-                    onClick={() => handleDelete(img.id)}
-                    className="text-xs text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition"
-                  >
-                    Delete
-                  </button>
+                  {/* Actions */}
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setEditing(img)}
+                      className="text-xs text-coral-600 hover:text-coral-700 dark:text-coral-400 dark:hover:text-coral-300 transition"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDelete(img.id)}
+                      className="text-xs text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -537,7 +632,6 @@ export default function ImageManager() {
             className="relative max-w-4xl w-full max-h-[90vh] bg-white dark:bg-zinc-900 rounded-xl overflow-hidden shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Close button */}
             <button
               onClick={() => setLightbox(null)}
               className="absolute top-3 right-3 z-10 p-1.5 bg-black/50 hover:bg-black/70 text-white rounded-full transition"
@@ -559,14 +653,12 @@ export default function ImageManager() {
               </svg>
             </button>
 
-            {/* Image */}
             <img
               src={`/${lightbox.path}`}
               alt={lightbox.altText || lightbox.filename}
               className="w-full max-h-[70vh] object-contain bg-zinc-100 dark:bg-zinc-800"
             />
 
-            {/* Details */}
             <div className="p-4 border-t border-zinc-200 dark:border-zinc-800">
               <p className="font-medium text-zinc-900 dark:text-zinc-100 mb-1">
                 {lightbox.filename}
@@ -577,11 +669,14 @@ export default function ImageManager() {
                 </p>
               )}
               <div className="flex flex-wrap gap-1.5">
-                <span
-                  className={`text-xs font-medium px-2 py-0.5 rounded-full ${categoryColor(lightbox.category)}`}
-                >
-                  {CATEGORY_LABELS[lightbox.category] ?? lightbox.category}
-                </span>
+                {lightbox.categories.map((c) => (
+                  <span
+                    key={c}
+                    className={`text-xs font-medium px-2 py-0.5 rounded-full ${categoryColor(c)}`}
+                  >
+                    {CATEGORY_LABELS[c] ?? c}
+                  </span>
+                ))}
                 <span
                   className={`text-xs font-medium px-2 py-0.5 rounded-full ${ageGroupColor(lightbox.ageGroup)}`}
                 >
@@ -605,6 +700,188 @@ export default function ImageManager() {
           </div>
         </div>
       )}
+
+      {/* ─── Edit Modal ────────────────────────────────────────────── */}
+      {editing && (
+        <EditImageModal
+          image={editing}
+          onCancel={() => setEditing(null)}
+          onSave={handleSaveEdit}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ── Edit Modal Component ──────────────────────────────────────────── */
+
+function EditImageModal({
+  image,
+  onCancel,
+  onSave,
+}: {
+  image: ImageAsset;
+  onCancel: () => void;
+  onSave: (updated: ImageAsset) => void;
+}) {
+  const [categories, setCategories] = useState<string[]>(image.categories);
+  const [ageGroup, setAgeGroup] = useState<string>(image.ageGroup);
+  const [altText, setAltText] = useState<string>(image.altText);
+  const [tagsStr, setTagsStr] = useState<string>(image.tags.join(", "));
+  const [saving, setSaving] = useState(false);
+
+  const toggleCategory = (cat: string) => {
+    setCategories((prev) =>
+      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat],
+    );
+  };
+
+  const handleSave = () => {
+    setSaving(true);
+    const tags = tagsStr.split(",").map((t) => t.trim()).filter(Boolean);
+    onSave({
+      ...image,
+      categories,
+      ageGroup,
+      altText,
+      tags,
+    });
+    // Note: parent closes modal on success
+    setSaving(false);
+  };
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      onClick={onCancel}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") onCancel();
+      }}
+    >
+      <div
+        className="relative max-w-2xl w-full max-h-[90vh] overflow-y-auto bg-white dark:bg-zinc-900 rounded-xl shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-6">
+          <div className="flex items-start justify-between mb-4">
+            <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
+              Edit Image
+            </h2>
+            <button
+              onClick={onCancel}
+              className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition"
+              aria-label="Close"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Preview */}
+          <div className="mb-4 rounded-lg overflow-hidden bg-zinc-100 dark:bg-zinc-800">
+            <img
+              src={`/${image.path}`}
+              alt={image.altText || image.filename}
+              className="w-full max-h-48 object-contain"
+            />
+          </div>
+
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4 truncate">
+            {image.filename}
+          </p>
+
+          {/* Categories */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+              Categories <span className="text-zinc-400">(pick one or more)</span>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {ALL_CATEGORIES.map((c) => {
+                const active = categories.includes(c);
+                return (
+                  <button
+                    type="button"
+                    key={c}
+                    onClick={() => toggleCategory(c)}
+                    className={`text-xs font-medium px-3 py-1.5 rounded-full transition border ${
+                      active
+                        ? `${categoryColor(c)} border-transparent`
+                        : "bg-white dark:bg-zinc-800 border-zinc-300 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-coral-300"
+                    }`}
+                  >
+                    {CATEGORY_LABELS[c]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Age Group */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+              Age Group
+            </label>
+            <select
+              value={ageGroup}
+              onChange={(e) => setAgeGroup(e.target.value)}
+              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-coral-500"
+            >
+              {AGE_GROUPS.map((ag) => (
+                <option key={ag} value={ag}>
+                  {AGE_GROUP_LABELS[ag]}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Alt Text */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+              Alt Text
+            </label>
+            <input
+              type="text"
+              value={altText}
+              onChange={(e) => setAltText(e.target.value)}
+              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-coral-500"
+            />
+          </div>
+
+          {/* Tags */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+              Tags <span className="text-zinc-400">(comma separated)</span>
+            </label>
+            <input
+              type="text"
+              value={tagsStr}
+              onChange={(e) => setTagsStr(e.target.value)}
+              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-coral-500"
+            />
+          </div>
+
+          {/* Actions */}
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={onCancel}
+              className="px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving || categories.length === 0}
+              className="px-5 py-2 text-sm font-medium bg-coral-600 hover:bg-coral-700 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 text-white disabled:text-zinc-500 rounded-lg transition"
+            >
+              {saving ? "Saving..." : "Save"}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

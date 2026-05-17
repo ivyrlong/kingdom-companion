@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import GameTabs from "@/components/GameTabs";
+import EncyclopediaProgressWidget from "@/components/encyclopedia/EncyclopediaProgressWidget";
 
 const AGE_GROUP_LABELS: Record<string, string> = {
   LITTLE_ONES: "Little Ones (5-8)",
@@ -10,6 +11,24 @@ const AGE_GROUP_LABELS: Record<string, string> = {
   ADULT: "Adult (18+)",
   FAMILY: "Family",
 };
+
+// Pick the card image for this viewer: their age group's image if set,
+// otherwise the shared "All ages" image, otherwise none (UI shows a placeholder).
+function resolveCardImage(
+  cardImages: unknown,
+  viewerAgeGroup: string,
+): string | null {
+  if (
+    !cardImages ||
+    typeof cardImages !== "object" ||
+    Array.isArray(cardImages)
+  ) {
+    return null;
+  }
+  const map = cardImages as Record<string, unknown>;
+  const picked = map[viewerAgeGroup] ?? map.SHARED;
+  return typeof picked === "string" && picked ? picked : null;
+}
 
 export const metadata = { title: "Games | Kingdom Companion" };
 
@@ -21,7 +40,42 @@ export default async function GamesPage({
   const { week: weekParam } = await searchParams;
   const weekOffset = parseInt(weekParam ?? "0", 10) || 0;
   const session = await auth();
+  const userId = session?.user?.id;
   const userAgeGroup = (session?.user as { ageGroup?: string })?.ageGroup ?? "YOUTH";
+  const showEncyclopediaWidget =
+    !!userId && (userAgeGroup === "LITTLE_ONES" || userAgeGroup === "FAMILY");
+
+  // Encyclopedia progress (Little Ones / Family only)
+  let encyclopediaStats: {
+    collected: number;
+    total: number;
+    recent: { term: string; imageUrl: string | null }[];
+  } | null = null;
+
+  if (showEncyclopediaWidget) {
+    const [total, recentCollections] = await Promise.all([
+      prisma.encyclopediaEntry.count({
+        where: { isActive: true, ageGroup: { in: ["LITTLE_ONES", "FAMILY"] } },
+      }),
+      prisma.userEncyclopediaCollection.findMany({
+        where: { userId },
+        orderBy: { collectedAt: "desc" },
+        take: 4,
+        include: { entry: { select: { term: true, imageUrl: true } } },
+      }),
+    ]);
+    const collected = await prisma.userEncyclopediaCollection.count({
+      where: { userId },
+    });
+    encyclopediaStats = {
+      collected,
+      total,
+      recent: recentCollections.map((c) => ({
+        term: c.entry.term,
+        imageUrl: c.entry.imageUrl,
+      })),
+    };
+  }
 
   // Evergreen games (engines without content packs — classic games)
   const games = await prisma.game.findMany({
@@ -91,6 +145,7 @@ export default async function GamesPage({
     gameAgeGroup: game.ageGroup,
     title: game.title,
     description: game.description,
+    imageUrl: resolveCardImage(game.cardImages, userAgeGroup),
   }));
 
   const prepCards = meetingPrepInstances.map((inst) => ({
@@ -101,6 +156,7 @@ export default async function GamesPage({
     gameAgeGroup: inst.game.ageGroup,
     title: inst.title,
     description: inst.game.description,
+    imageUrl: resolveCardImage(inst.game.cardImages, userAgeGroup),
   }));
 
   const liveCards = meetingLiveInstances.map((inst) => ({
@@ -111,6 +167,7 @@ export default async function GamesPage({
     gameAgeGroup: inst.game.ageGroup,
     title: inst.title,
     description: inst.game.description,
+    imageUrl: resolveCardImage(inst.game.cardImages, userAgeGroup),
   }));
 
   const dailyCards = dailyInstances.map((inst) => ({
@@ -121,6 +178,7 @@ export default async function GamesPage({
     gameAgeGroup: inst.game.ageGroup,
     title: inst.title,
     description: inst.game.description,
+    imageUrl: resolveCardImage(inst.game.cardImages, userAgeGroup),
   }));
 
   // Format week label
@@ -135,6 +193,14 @@ export default async function GamesPage({
       <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50 mb-8">
         Games
       </h1>
+
+      {encyclopediaStats && (
+        <EncyclopediaProgressWidget
+          collected={encyclopediaStats.collected}
+          total={encyclopediaStats.total}
+          recent={encyclopediaStats.recent}
+        />
+      )}
 
       <GameTabs
         evergreen={evergreenCards}

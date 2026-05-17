@@ -26,12 +26,40 @@ const VALID_CATEGORIES = [
   "COLORING_OUTLINE",
 ] as const;
 
+type ImageCategoryValue = (typeof VALID_CATEGORIES)[number];
+
 const VALID_AGE_GROUPS = [
   "LITTLE_ONES",
   "YOUTH",
   "ADULT",
   "FAMILY",
 ] as const;
+
+function parseCategoriesField(raw: FormDataEntryValue | null): ImageCategoryValue[] | null {
+  if (raw == null) return null;
+  const str = raw.toString().trim();
+  if (!str) return [];
+
+  // Try JSON first ("['SCENE','PHOTO']" or '["SCENE","PHOTO"]')
+  let arr: unknown;
+  try {
+    arr = JSON.parse(str);
+  } catch {
+    // Fallback: comma-separated
+    arr = str.split(",").map((s) => s.trim()).filter(Boolean);
+  }
+
+  if (!Array.isArray(arr)) return null;
+  const result: ImageCategoryValue[] = [];
+  for (const item of arr) {
+    if (typeof item !== "string") return null;
+    if (!VALID_CATEGORIES.includes(item as ImageCategoryValue)) return null;
+    if (!result.includes(item as ImageCategoryValue)) {
+      result.push(item as ImageCategoryValue);
+    }
+  }
+  return result;
+}
 
 export async function GET(req: Request) {
   const session = await auth();
@@ -43,9 +71,10 @@ export async function GET(req: Request) {
   const category = searchParams.get("category");
 
   const images = await prisma.imageAsset.findMany({
-    where: category
-      ? { category: category as (typeof VALID_CATEGORIES)[number] }
-      : undefined,
+    where:
+      category && VALID_CATEGORIES.includes(category as ImageCategoryValue)
+        ? { categories: { has: category as ImageCategoryValue } }
+        : undefined,
     include: {
       contentPack: { select: { id: true, title: true } },
     },
@@ -66,7 +95,8 @@ export async function POST(req: Request) {
 
   // Extract fields
   const file = formData.get("file") as File | null;
-  const category = formData.get("category") as string | null;
+  const categoriesRaw = formData.get("categories");
+  const legacyCategory = formData.get("category"); // backwards compat
   const ageGroup = (formData.get("ageGroup") as string) || "FAMILY";
   const altText = (formData.get("altText") as string) || "";
   const tagsRaw = formData.get("tags") as string | null;
@@ -77,9 +107,26 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "File is required" }, { status: 400 });
   }
 
-  if (!category || !VALID_CATEGORIES.includes(category as (typeof VALID_CATEGORIES)[number])) {
+  // Resolve categories: prefer multi-value field, fall back to legacy single value
+  let categories = parseCategoriesField(categoriesRaw);
+  if (categories === null) {
     return NextResponse.json(
-      { error: `Category is required and must be one of: ${VALID_CATEGORIES.join(", ")}` },
+      { error: `Invalid categories. Each must be one of: ${VALID_CATEGORIES.join(", ")}` },
+      { status: 400 }
+    );
+  }
+  if (categories.length === 0 && typeof legacyCategory === "string") {
+    if (!VALID_CATEGORIES.includes(legacyCategory as ImageCategoryValue)) {
+      return NextResponse.json(
+        { error: `category must be one of: ${VALID_CATEGORIES.join(", ")}` },
+        { status: 400 }
+      );
+    }
+    categories = [legacyCategory as ImageCategoryValue];
+  }
+  if (categories.length === 0) {
+    return NextResponse.json(
+      { error: "At least one category is required" },
       { status: 400 }
     );
   }
@@ -138,7 +185,7 @@ export async function POST(req: Request) {
       filename: originalName,
       path: relativePath,
       altText,
-      category: category as (typeof VALID_CATEGORIES)[number],
+      categories,
       ageGroup: ageGroup as (typeof VALID_AGE_GROUPS)[number],
       tags: JSON.parse(JSON.stringify(tags)),
       contentPackId: contentPackId || null,

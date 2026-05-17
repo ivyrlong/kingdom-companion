@@ -97,11 +97,11 @@ export default async function GamePage({
         const coloringImages = await prisma.imageAsset.findMany({
           where: {
             contentPackId: pack.id,
-            category: { in: ["COLORING_SVG", "COLORING_OUTLINE"] },
+            categories: { hasSome: ["COLORING_SVG", "COLORING_OUTLINE"] },
           },
           take: 2,
         });
-        const picked = coloringImages.find((i) => i.category === preferredCategory)
+        const picked = coloringImages.find((i) => i.categories.includes(preferredCategory))
           ?? coloringImages[0];
         if (picked) imageUrl = `/${picked.path}`;
       } else if (pack.images.length > 0) {

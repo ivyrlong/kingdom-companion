@@ -5,6 +5,7 @@ import { useGameSession } from "@/hooks/useGameSession";
 import type { GameProps } from "@/app/(dashboard)/games/[slug]/page";
 import Confetti from "@/components/Confetti";
 import { getIconForConcept } from "@/components/icons/BibleIcons";
+import { useEncyclopedia } from "@/components/encyclopedia/EncyclopediaProvider";
 
 type Props = GameProps;
 
@@ -259,6 +260,7 @@ function buildRounds(contentPack?: Props["contentPack"], totalRounds = DEFAULT_T
 export default function WhoAmI({ gameId, userId, contentPack, ageGroup }: Props) {
   const { status, finalScore, startSession, endSession, reset } =
     useGameSession({ gameId, userId });
+  const { discover } = useEncyclopedia();
 
   const difficulty = getDifficulty(ageGroup);
   const TOTAL_ROUNDS = difficulty === "easy" ? 4 : difficulty === "hard" ? 10 : DEFAULT_TOTAL_ROUNDS;
@@ -302,12 +304,14 @@ export default function WhoAmI({ gameId, userId, contentPack, ageGroup }: Props)
         const points = POINTS_PER_CLUE[clueIndex] ?? 20;
         setScore((s) => s + points);
         setFeedback("correct");
+        // Encyclopedia discovery — try the character name
+        discover(character.name, "who-am-i");
       } else {
         setFeedback("wrong");
         setShowAnswer(true);
       }
     },
-    [character, clueIndex, feedback]
+    [character, clueIndex, feedback, discover, POINTS_PER_CLUE]
   );
 
   const handleNextClue = useCallback(() => {

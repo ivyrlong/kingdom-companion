@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -11,14 +11,6 @@ const AGE_GROUP_LABELS: Record<string, string> = {
   FAMILY: "Family",
 };
 
-// Which age groups can see which games
-const AGE_VISIBILITY: Record<string, string[]> = {
-  LITTLE_ONES: ["LITTLE_ONES", "FAMILY"],
-  YOUTH: ["YOUTH", "FAMILY", "LITTLE_ONES"],
-  ADULT: ["ADULT", "FAMILY", "YOUTH"],
-  FAMILY: ["FAMILY", "LITTLE_ONES", "YOUTH", "ADULT"],
-};
-
 interface GameCard {
   id: string;
   href: string;
@@ -27,6 +19,7 @@ interface GameCard {
   gameAgeGroup: string;
   title: string;
   description: string;
+  imageUrl?: string | null;
 }
 
 interface GameTabsProps {
@@ -41,7 +34,7 @@ interface GameTabsProps {
 
 const TABS = [
   { key: "daily", label: "Today" },
-  { key: "evergreen", label: "Evergreen" },
+  { key: "evergreen", label: "All Games" },
   { key: "prep", label: "This Week" },
   { key: "live", label: "Meeting Live" },
 ] as const;
@@ -81,41 +74,19 @@ export default function GameTabs({
   userAgeGroup,
 }: GameTabsProps) {
   const router = useRouter();
-  const [showAll, setShowAll] = useState(false);
   const [activeTab, setActiveTab] = useState<TabKey>(
     daily.length > 0 ? "daily" : "evergreen"
   );
 
-  const visibleAgeGroups = AGE_VISIBILITY[userAgeGroup] ?? AGE_VISIBILITY.FAMILY;
-
-  // Filter cards by age group visibility
-  const filterCards = useMemo(() => {
-    return (cards: GameCard[]) => {
-      if (showAll) return cards;
-      return cards.filter((c) => visibleAgeGroups.includes(c.gameAgeGroup));
-    };
-  }, [showAll, visibleAgeGroups]);
-
-  const tabData: Record<TabKey, GameCard[]> = useMemo(
-    () => ({
-      daily: filterCards(daily),
-      evergreen: filterCards(evergreen),
-      prep: filterCards(meetingPrep),
-      live: filterCards(meetingLive),
-    }),
-    [filterCards, daily, evergreen, meetingPrep, meetingLive]
-  );
-
-  // Count unfiltered totals for the "show all" toggle
-  const unfilteredTotals: Record<TabKey, number> = {
-    daily: daily.length,
-    evergreen: evergreen.length,
-    prep: meetingPrep.length,
-    live: meetingLive.length,
+  // Every tab shows all of its games to all visitors (no age filtering).
+  const tabData: Record<TabKey, GameCard[]> = {
+    daily,
+    evergreen,
+    prep: meetingPrep,
+    live: meetingLive,
   };
 
   const cards = tabData[activeTab];
-  const hiddenCount = unfilteredTotals[activeTab] - cards.length;
   const showWeekNav = activeTab === "prep" || activeTab === "live";
 
   const navigateWeek = (direction: -1 | 1) => {
@@ -125,24 +96,14 @@ export default function GameTabs({
 
   return (
     <>
-      {/* Age group indicator + filter toggle */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${ageGroupColor(userAgeGroup)}`}>
-            {AGE_GROUP_LABELS[userAgeGroup] ?? userAgeGroup}
-          </span>
-          <span className="text-xs text-zinc-400 dark:text-zinc-500">
-            Showing games for your age group
-          </span>
-        </div>
-        {hiddenCount > 0 && (
-          <button
-            onClick={() => setShowAll(!showAll)}
-            className="text-xs text-coral-600 dark:text-coral-400 hover:underline"
-          >
-            {showAll ? "Show my games" : `Show all (+${hiddenCount} more)`}
-          </button>
-        )}
+      {/* Age group indicator */}
+      <div className="flex items-center gap-2 mb-4">
+        <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${ageGroupColor(userAgeGroup)}`}>
+          {AGE_GROUP_LABELS[userAgeGroup] ?? userAgeGroup}
+        </span>
+        <span className="text-xs text-zinc-400 dark:text-zinc-500">
+          Showing all games
+        </span>
       </div>
 
       {/* Tabs */}
@@ -212,8 +173,23 @@ export default function GameTabs({
             <Link
               key={card.id}
               href={card.href}
-              className="group bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-6 hover:shadow-lg hover:border-coral-300 dark:hover:border-coral-700 transition"
+              className="group bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden flex flex-col hover:shadow-lg hover:border-coral-300 dark:hover:border-coral-700 transition"
             >
+              <div className="aspect-[2/1] w-full overflow-hidden bg-gradient-to-br from-coral-100 via-peach-100 to-sky-100 dark:from-zinc-800 dark:via-zinc-800 dark:to-zinc-800 flex items-center justify-center">
+                {card.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={card.imageUrl}
+                    alt=""
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                ) : (
+                  <span className="text-4xl font-bold text-coral-400/70 dark:text-zinc-600 select-none">
+                    {card.title.charAt(0)}
+                  </span>
+                )}
+              </div>
+              <div className="p-6">
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-xs font-medium bg-coral-50 dark:bg-coral-900/30 text-coral-700 dark:text-coral-300 px-2 py-1 rounded-full">
                   {card.category}
@@ -228,6 +204,7 @@ export default function GameTabs({
               <p className="text-zinc-500 dark:text-zinc-400 text-sm">
                 {card.description}
               </p>
+              </div>
             </Link>
           ))}
         </div>
