@@ -15,6 +15,7 @@ import Cryptogram from "@/components/games/Cryptogram";
 import Hangman from "@/components/games/Hangman";
 import JigsawPuzzle from "@/components/games/JigsawPuzzle";
 import ColoringPage from "@/components/games/ColoringPage";
+import MeetingBingo from "@/components/games/MeetingBingo";
 
 export interface ContentPackData {
   vocabulary: string[];
@@ -48,6 +49,7 @@ const GAME_COMPONENTS: Record<string, React.ComponentType<GameProps>> = {
   "hangman": Hangman,
   "jigsaw-puzzle": JigsawPuzzle as unknown as React.ComponentType<GameProps>,
   "coloring-page": ColoringPage as unknown as React.ComponentType<GameProps>,
+  "meeting-bingo": MeetingBingo,
 };
 
 export default async function GamePage({

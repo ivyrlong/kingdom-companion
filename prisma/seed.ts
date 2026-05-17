@@ -135,6 +135,14 @@ const games = [
     ageGroup: "FAMILY" as const,
     category: "Creative",
   },
+  {
+    slug: "meeting-bingo",
+    title: "Meeting Bingo",
+    description:
+      "Listen for words during the meeting and mark your card. Get three in a row to call BINGO!",
+    ageGroup: "LITTLE_ONES" as const,
+    category: "Meeting Tool",
+  },
 ];
 
 const badges = [

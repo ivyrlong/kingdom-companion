@@ -100,3 +100,8 @@ A few large colorful jigsaw pieces coming together to reveal a gentle Bible natu
 ```
 A line-art Bible nature scene being filled in by a floating crayon, half clean outline and half vibrantly colored, sky and coral-dominant with golden accents. Flat vector children's storybook illustration, single large centered focal subject, soft cream #FAF8F6 background, vibrant but harmonious palette of coral #FF8269 / sky #4ABDE8 / violet #9474EF / golden #F3B840 / peach #FFA56B, soft golden light, bold rounded simple shapes, clean minimal linework, no fine detail, cheerful peaceful mood, reads clearly as a small UI thumbnail, flat 2D, no text, no logos. Exclude: text, letters, photorealism, 3D render, busy or dark background, muddy or garish colors, crosses, halos, holiday imagery, realistic faces, branded characters.
 ```
+
+## 17. Meeting Bingo (`meeting-bingo`)
+```
+A friendly 3 by 3 listening card with a few squares cheerfully marked with stars and check marks, a small star stamp resting beside it, violet-dominant with golden and sky accents. Flat vector children's storybook illustration, single large centered focal subject, soft cream #FAF8F6 background, vibrant but harmonious palette of coral #FF8269 / sky #4ABDE8 / violet #9474EF / golden #F3B840 / peach #FFA56B, soft golden light, bold rounded simple shapes, clean minimal linework, no fine detail, cheerful peaceful mood, reads clearly as a small UI thumbnail, flat 2D, no text, no logos. Exclude: text, letters, numbers, photorealism, 3D render, busy or dark background, muddy or garish colors, gambling, casino, money, crosses, halos, holiday imagery, realistic faces, branded characters.
+```
