@@ -26,6 +26,12 @@ export default function Navbar() {
                 Explore
               </Link>
               <Link
+                href="/meeting"
+                className="text-sm text-zinc-600 dark:text-zinc-300 hover:text-coral-600 dark:hover:text-coral-400 transition"
+              >
+                Meeting
+              </Link>
+              <Link
                 href="/profile"
                 className="text-sm text-zinc-600 dark:text-zinc-300 hover:text-coral-600 dark:hover:text-coral-400 transition"
               >
