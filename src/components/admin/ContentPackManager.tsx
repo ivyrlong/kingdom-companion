@@ -641,6 +641,7 @@ function ContentPackEditor({
             <option value="WATCHTOWER">Watchtower Study</option>
             <option value="OCLM">Life & Ministry Workbook</option>
             <option value="EVERGREEN">Evergreen (General)</option>
+            <option value="DAILY_TEXT">Daily Text</option>
           </select>
         </div>
         <div>

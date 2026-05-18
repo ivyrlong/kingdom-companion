@@ -5,7 +5,9 @@ import { z } from "zod";
 
 const updateSchema = z.object({
   title: z.string().min(1).optional(),
-  source: z.enum(["WATCHTOWER", "OCLM", "EVERGREEN"]).optional(),
+  source: z
+    .enum(["WATCHTOWER", "OCLM", "EVERGREEN", "DAILY_TEXT"])
+    .optional(),
   context: z.enum(["EVERGREEN", "MEETING_PREP", "MEETING_LIVE", "DAILY"]).optional(),
   vocabulary: z.array(z.string()).optional(),
   scriptures: z

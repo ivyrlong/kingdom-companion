@@ -5,7 +5,7 @@ import { z } from "zod";
 
 const createSchema = z.object({
   title: z.string().min(1),
-  source: z.enum(["WATCHTOWER", "OCLM", "EVERGREEN"]),
+  source: z.enum(["WATCHTOWER", "OCLM", "EVERGREEN", "DAILY_TEXT"]),
   context: z.enum(["EVERGREEN", "MEETING_PREP", "MEETING_LIVE", "DAILY"]),
   sourceText: z.string().optional(),
   vocabulary: z.array(z.string()),
