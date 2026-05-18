@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { getAgeGroup } from "@/lib/user";
 import { resolveCardImage } from "@/lib/card-image";
 import { loadEncyclopediaBundle } from "@/lib/encyclopedia-data";
 import { AGE_GROUP_LABELS } from "@/components/GameCardGrid";
@@ -12,8 +13,7 @@ export const metadata = { title: "Explore | Kingdom Companion" };
 export default async function ExplorePage() {
   const session = await auth();
   const userId = session?.user?.id;
-  const userAgeGroup =
-    (session?.user as { ageGroup?: string })?.ageGroup ?? "YOUTH";
+  const userAgeGroup = await getAgeGroup(userId);
 
   const bundle = await loadEncyclopediaBundle(userId);
 

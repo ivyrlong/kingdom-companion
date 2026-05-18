@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { getAgeGroup } from "@/lib/user";
 import { getWeekRange } from "@/lib/week";
 import { resolveCardImage } from "@/lib/card-image";
 import MeetingTabs from "@/components/MeetingTabs";
@@ -17,8 +18,7 @@ export default async function MeetingPage({
   const weekOffset = parseInt(weekParam ?? "0", 10) || 0;
 
   const session = await auth();
-  const userAgeGroup =
-    (session?.user as { ageGroup?: string })?.ageGroup ?? "YOUTH";
+  const userAgeGroup = await getAgeGroup(session?.user?.id);
 
   const { startOfWeek, endOfWeek, label } = getWeekRange(weekOffset);
 

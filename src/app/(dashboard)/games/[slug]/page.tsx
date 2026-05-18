@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { getAgeGroup } from "@/lib/user";
 import { notFound } from "next/navigation";
 import BibleBooksBlitz from "@/components/games/BibleBooksBlitz";
 import ScriptureMemoryMatch from "@/components/games/ScriptureMemoryMatch";
@@ -69,6 +70,7 @@ export default async function GamePage({
   if (!game || !game.isActive) notFound();
 
   const session = await auth();
+  const userAgeGroup = await getAgeGroup(session?.user?.id);
 
   // Load content pack if specified
   let contentPack: ContentPackData | undefined;
@@ -94,7 +96,6 @@ export default async function GamePage({
 
       // For coloring pages, pick the right image category based on user age
       if (slug === "coloring-page") {
-        const userAgeGroup = (session?.user as { ageGroup?: string })?.ageGroup;
         const preferredCategory = userAgeGroup === "LITTLE_ONES" ? "COLORING_SVG" : "COLORING_OUTLINE";
         const coloringImages = await prisma.imageAsset.findMany({
           where: {
@@ -137,7 +138,7 @@ export default async function GamePage({
       <GameComponent
         gameId={game.id}
         userId={session?.user?.id}
-        ageGroup={(session?.user as { ageGroup?: string })?.ageGroup as AgeGroup | undefined}
+        ageGroup={userAgeGroup as AgeGroup}
         contentPack={contentPack}
         contentPackTitle={contentPackTitle}
         {...(imageUrl && { imageUrl })}

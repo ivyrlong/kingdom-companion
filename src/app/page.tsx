@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { getAgeGroup } from "@/lib/user";
 import { getTodayRange } from "@/lib/week";
 import { resolveCardImage } from "@/lib/card-image";
 import GameCardGrid from "@/components/GameCardGrid";
@@ -45,8 +46,7 @@ export default async function Home() {
   }
 
   // Logged-in home: today's games front and centre.
-  const userAgeGroup =
-    (session.user as { ageGroup?: string }).ageGroup ?? "YOUTH";
+  const userAgeGroup = await getAgeGroup(session.user.id);
   const firstName = (session.user.name ?? "friend").split(" ")[0];
 
   const { todayStart, todayEnd } = getTodayRange();
