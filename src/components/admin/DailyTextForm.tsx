@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 export default function DailyTextForm() {
   const [date, setDate] = useState(
@@ -10,21 +10,12 @@ export default function DailyTextForm() {
   const [scriptureText, setScriptureText] = useState("");
   const [comment, setComment] = useState("");
   const [simplifiedComment, setSimplifiedComment] = useState("");
-  const [featuredGameSlug, setFeaturedGameSlug] = useState("");
-  const [games, setGames] = useState<{ slug: string; title: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState<{
     title: string;
     instancesCreated: number;
   } | null>(null);
-
-  useEffect(() => {
-    fetch("/api/admin/games")
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data: { slug: string; title: string }[]) => setGames(data))
-      .catch(() => {});
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,7 +33,6 @@ export default function DailyTextForm() {
           scriptureText,
           comment,
           simplifiedComment,
-          featuredGameSlug: featuredGameSlug || null,
         }),
       });
 
@@ -60,7 +50,6 @@ export default function DailyTextForm() {
       setScriptureText("");
       setComment("");
       setSimplifiedComment("");
-      setFeaturedGameSlug("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
     } finally {
@@ -151,27 +140,6 @@ export default function DailyTextForm() {
             placeholder="A short, simple lesson from this scripture for young children..."
             className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-coral-500"
           />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-            Featured game{" "}
-            <span className="text-zinc-400">
-              (Little Ones — plays on their Today page)
-            </span>
-          </label>
-          <select
-            value={featuredGameSlug}
-            onChange={(e) => setFeaturedGameSlug(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-coral-500"
-          >
-            <option value="">— None —</option>
-            {games.map((g) => (
-              <option key={g.slug} value={g.slug}>
-                {g.title}
-              </option>
-            ))}
-          </select>
         </div>
 
         {error && (

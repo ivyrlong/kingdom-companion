@@ -18,8 +18,8 @@ interface BulkResult {
 }
 
 const TEMPLATE =
-  "date,scriptureRef,scriptureText,comment,simplifiedComment,featuredGame\n" +
-  '2026-01-01,Psalm 1:1,"Happy is the man that does not walk in the counsel of the wicked.","Today\'s text reminds us to choose our associations wisely.","Choosing good friends helps us stay close to Jehovah.",bible-word-search\n';
+  "date,scriptureRef,scriptureText,comment,simplifiedComment\n" +
+  '2026-01-01,Psalm 1:1,"Happy is the man that does not walk in the counsel of the wicked.","Today\'s text reminds us to choose our associations wisely.","Choosing good friends helps us stay close to Jehovah."\n';
 
 export default function DailyTextBulk() {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -84,8 +84,7 @@ export default function DailyTextBulk() {
         <span className="font-mono font-semibold">
           date, scriptureRef, scriptureText, comment, simplifiedComment
         </span>{" "}
-        (optional <span className="font-mono">featuredGame</span> = a game slug
-        for Little Ones) — one row per day. Dates should be{" "}
+        — one row per day. Dates should be{" "}
         <span className="font-mono">YYYY-MM-DD</span>. A day that already exists
         will be <span className="font-semibold">replaced</span>.
         <button

@@ -7,7 +7,7 @@ import { getAgeGroup } from "@/lib/user";
 import { getTodayRange } from "@/lib/week";
 import { resolveCardImage } from "@/lib/card-image";
 import GameCardGrid from "@/components/GameCardGrid";
-import { InlineGame, type AgeGroup } from "@/components/games/registry";
+import DailyTextPanel from "@/components/DailyTextPanel";
 
 export default async function Home() {
   const session = await auth();
@@ -51,7 +51,6 @@ export default async function Home() {
   const firstName = (session.user.name ?? "friend").split(" ")[0];
 
   const { todayStart, todayEnd } = getTodayRange();
-  const isLittle = userAgeGroup === "LITTLE_ONES";
 
   const pack = await prisma.contentPack.findFirst({
     where: {
@@ -81,37 +80,28 @@ export default async function Home() {
     imageUrl: resolveCardImage(inst.game.cardImages, userAgeGroup),
   }));
 
-  // Daily scripture + comments
+  // Daily scripture + comments + the user's saved question responses
   const scripture = pack
     ? ((pack.scriptures as { reference: string; text: string }[])[0] ?? null)
     : null;
-  const dailyImage = pack?.images?.[0]
-    ? `/${pack.images[0].path}`
-    : null;
+  const dailyImage = pack?.images?.[0] ? `/${pack.images[0].path}` : null;
+  const dailyQuestions = pack
+    ? (pack.questions as { question: string }[])
+        .map((q) => q.question)
+        .filter(Boolean)
+        .slice(0, 2)
+    : [];
 
-  // Featured game for Little Ones (admin-chosen, plays inline)
-  let featured: { slug: string; gameId: string } | null = null;
-  if (isLittle && pack?.featuredGameSlug) {
-    const fg = await prisma.game.findUnique({
-      where: { slug: pack.featuredGameSlug },
-      select: { id: true, slug: true, isActive: true },
+  const savedResponses: Record<number, string> = {};
+  if (pack) {
+    const rows = await prisma.dailyResponse.findMany({
+      where: { userId: session.user.id, contentPackId: pack.id },
+      select: { questionIndex: true, response: true },
     });
-    if (fg && fg.isActive) featured = { slug: fg.slug, gameId: fg.id };
+    rows.forEach((r) => {
+      savedResponses[r.questionIndex] = r.response;
+    });
   }
-  const packData = pack
-    ? {
-        vocabulary: pack.vocabulary as string[],
-        scriptures: pack.scriptures as { reference: string; text: string }[],
-        keyPeople: pack.keyPeople as string[],
-        themes: pack.themes as string[],
-        questions: pack.questions as {
-          question: string;
-          answer: string;
-          options?: string[];
-        }[],
-        keyPhrases: pack.keyPhrases as string[],
-      }
-    : undefined;
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
@@ -132,56 +122,18 @@ export default async function Home() {
             </p>
           </div>
         ) : (
-          <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-6 sm:p-8">
-            <p className="text-sm font-semibold text-coral-600 dark:text-coral-400 mb-1">
-              {scripture.reference}
-            </p>
-            <p className="text-lg text-zinc-800 dark:text-zinc-100 leading-relaxed mb-5">
-              “{scripture.text}”
-            </p>
-
-            {isLittle ? (
-              <div className="space-y-5">
-                {dailyImage && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={dailyImage}
-                    alt=""
-                    className="w-full max-h-72 object-contain rounded-xl bg-zinc-50 dark:bg-zinc-800"
-                  />
-                )}
-                {pack.simplifiedComment && (
-                  <div className="rounded-xl bg-amber-50 dark:bg-amber-900/15 border border-amber-200 dark:border-amber-800/40 p-5">
-                    <p className="text-sm font-semibold text-amber-700 dark:text-amber-300 mb-1">
-                      Today&apos;s lesson
-                    </p>
-                    <p className="text-base text-zinc-800 dark:text-zinc-100 leading-relaxed whitespace-pre-wrap">
-                      {pack.simplifiedComment}
-                    </p>
-                  </div>
-                )}
-                {featured && (
-                  <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-4 sm:p-6">
-                    <InlineGame
-                      slug={featured.slug}
-                      gameId={featured.gameId}
-                      userId={session.user.id}
-                      ageGroup={userAgeGroup as AgeGroup}
-                      contentPack={packData}
-                      contentPackTitle={pack.title}
-                      {...(dailyImage ? { imageUrl: dailyImage } : {})}
-                    />
-                  </div>
-                )}
-              </div>
-            ) : (
-              pack.comment && (
-                <p className="text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap">
-                  {pack.comment}
-                </p>
-              )
-            )}
-          </div>
+          <DailyTextPanel
+            ageGroup={userAgeGroup}
+            packId={pack.id}
+            reference={scripture.reference}
+            text={scripture.text}
+            comment={pack.comment}
+            simplifiedComment={pack.simplifiedComment}
+            imageUrl={dailyImage}
+            vocabulary={pack.vocabulary as string[]}
+            questions={dailyQuestions}
+            savedResponses={savedResponses}
+          />
         )}
       </section>
 

@@ -27,6 +27,7 @@ model User {
   scores                  Score[]
   encyclopediaCollections UserEncyclopediaCollection[]
   personalEntries         PersonalEntry[]
+  dailyResponses          DailyResponse[]
 }
 
 model Account {
@@ -145,6 +146,7 @@ model ContentPack {
   meetingWeek MeetingWeek?   @relation(fields: [meetingWeekId], references: [id], onDelete: SetNull)
   instances   GameInstance[]
   images      ImageAsset[]
+  dailyResponses DailyResponse[]
 
   @@index([context])
   @@index([meetingWeekId])
@@ -291,6 +293,25 @@ model PersonalEntry {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+// DailyResponse = a Youth user's written answer to a daily-text question.
+// Visible to admins/parents for follow-up.
+model DailyResponse {
+  id            String   @id @default(cuid())
+  userId        String
+  contentPackId String
+  questionIndex Int
+  question      String   // snapshot of the question text at answer time
+  response      String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contentPack ContentPack @relation(fields: [contentPackId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, contentPackId, questionIndex])
+  @@index([contentPackId])
 }
 
 enum ImageCategory {
