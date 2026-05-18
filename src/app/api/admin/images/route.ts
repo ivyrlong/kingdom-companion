@@ -69,12 +69,21 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const category = searchParams.get("category");
+  const packId = searchParams.get("packId");
+
+  const where: {
+    categories?: { has: ImageCategoryValue };
+    contentPackId?: string;
+  } = {};
+  if (category && VALID_CATEGORIES.includes(category as ImageCategoryValue)) {
+    where.categories = { has: category as ImageCategoryValue };
+  }
+  if (packId) {
+    where.contentPackId = packId;
+  }
 
   const images = await prisma.imageAsset.findMany({
-    where:
-      category && VALID_CATEGORIES.includes(category as ImageCategoryValue)
-        ? { categories: { has: category as ImageCategoryValue } }
-        : undefined,
+    where: Object.keys(where).length > 0 ? where : undefined,
     include: {
       contentPack: { select: { id: true, title: true } },
     },

@@ -69,6 +69,10 @@ export default function ContentPackManager() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [filterContext, setFilterContext] = useState<string>("All");
+  const [imagesPack, setImagesPack] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
 
   /* ── Fetch packs ─────────────────────────────────────────────────── */
 
@@ -312,6 +316,14 @@ export default function ContentPackManager() {
                 {/* Actions */}
                 <div className="flex gap-2 shrink-0">
                   <button
+                    onClick={() =>
+                      setImagesPack({ id: pack.id, title: pack.title })
+                    }
+                    className="px-3 py-1.5 text-sm bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-lg transition"
+                  >
+                    Images
+                  </button>
+                  <button
                     onClick={() => startEdit(pack.id)}
                     className="px-3 py-1.5 text-sm bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-lg transition"
                   >
@@ -329,6 +341,227 @@ export default function ContentPackManager() {
           ))}
         </div>
       )}
+
+      {imagesPack && (
+        <PackImagesModal
+          packId={imagesPack.id}
+          packTitle={imagesPack.title}
+          onClose={() => setImagesPack(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Pack Images Modal
+   ═══════════════════════════════════════════════════════════════════════ */
+
+const PI_CATEGORIES = [
+  "SCENE",
+  "CHARACTER",
+  "ILLUSTRATION",
+  "OUTLINE",
+  "PHOTO",
+  "COLORING_SVG",
+  "COLORING_OUTLINE",
+] as const;
+const PI_AGE_GROUPS = ["LITTLE_ONES", "YOUTH", "ADULT", "FAMILY"] as const;
+
+interface PackImage {
+  id: string;
+  filename: string;
+  path: string;
+  categories: string[];
+  ageGroup: string;
+}
+
+function PackImagesModal({
+  packId,
+  packTitle,
+  onClose,
+}: {
+  packId: string;
+  packTitle: string;
+  onClose: () => void;
+}) {
+  const [images, setImages] = useState<PackImage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [category, setCategory] = useState<string>("ILLUSTRATION");
+  const [ageGroup, setAgeGroup] = useState<string>("FAMILY");
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/images?packId=${packId}`);
+      setImages(res.ok ? await res.json() : []);
+    } catch {
+      setImages([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [packId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const upload = async () => {
+    if (!file) return;
+    setBusy(true);
+    setErr("");
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("categories", JSON.stringify([category]));
+      fd.append("ageGroup", ageGroup);
+      fd.append("contentPackId", packId);
+      const res = await fetch("/api/admin/images", {
+        method: "POST",
+        body: fd,
+      });
+      if (res.ok) {
+        setFile(null);
+        await load();
+      } else {
+        const d = await res.json().catch(() => null);
+        setErr(d?.error || "Upload failed.");
+      }
+    } catch {
+      setErr("Upload failed.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const unlink = async (id: string) => {
+    setErr("");
+    const res = await fetch(`/api/admin/images/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contentPackId: null }),
+    });
+    if (res.ok) setImages((prev) => prev.filter((i) => i.id !== id));
+    else setErr("Could not unlink that image.");
+  };
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="relative max-w-2xl w-full max-h-[90vh] overflow-y-auto bg-white dark:bg-zinc-900 rounded-xl shadow-2xl p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between mb-1">
+          <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
+            Images
+          </h2>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-5 truncate">
+          {packTitle}
+        </p>
+
+        {err && (
+          <div className="mb-4 text-sm text-red-600 dark:text-red-400">
+            {err}
+          </div>
+        )}
+
+        {/* Linked images */}
+        {loading ? (
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 py-6 text-center">
+            Loading…
+          </p>
+        ) : images.length === 0 ? (
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 py-6 text-center">
+            No images linked to this pack yet.
+          </p>
+        ) : (
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mb-6">
+            {images.map((img) => (
+              <div
+                key={img.id}
+                className="rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden"
+              >
+                <div className="aspect-square bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={
+                      img.path.startsWith("/") ? img.path : `/${img.path}`
+                    }
+                    alt={img.filename}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <button
+                  onClick={() => unlink(img.id)}
+                  className="w-full text-xs py-1.5 text-red-500 hover:text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition"
+                >
+                  Unlink
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Upload to this pack */}
+        <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4">
+          <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+            Add an image to this pack
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              className="text-sm text-zinc-600 dark:text-zinc-300"
+            />
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-2 py-1.5 text-sm"
+            >
+              {PI_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+            <select
+              value={ageGroup}
+              onChange={(e) => setAgeGroup(e.target.value)}
+              className="rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-2 py-1.5 text-sm"
+            >
+              {PI_AGE_GROUPS.map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={upload}
+              disabled={!file || busy}
+              className="px-4 py-1.5 text-sm font-medium bg-coral-600 hover:bg-coral-700 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 text-white rounded-lg transition"
+            >
+              {busy ? "Uploading…" : "Upload"}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -15,6 +15,14 @@ interface ImageAsset {
   width: number | null;
   height: number | null;
   createdAt: string;
+  contentPackId?: string | null;
+  contentPack?: { id: string; title: string } | null;
+}
+
+interface ContentPackOption {
+  id: string;
+  title: string;
+  context: string;
 }
 
 const ALL_CATEGORIES = [
@@ -100,6 +108,10 @@ export default function ImageManager() {
   const [preview, setPreview] = useState<string | null>(null);
   const [uploadCategories, setUploadCategories] = useState<string[]>(["SCENE"]);
   const [ageGroup, setAgeGroup] = useState<string>("FAMILY");
+  const [uploadPackId, setUploadPackId] = useState<string>("");
+
+  /* State – content packs (for linking) */
+  const [packs, setPacks] = useState<ContentPackOption[]>([]);
   const [altText, setAltText] = useState("");
   const [tags, setTags] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -135,6 +147,13 @@ export default function ImageManager() {
   useEffect(() => {
     fetchImages();
   }, [fetchImages]);
+
+  useEffect(() => {
+    fetch("/api/admin/content-packs")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: ContentPackOption[]) => setPacks(data))
+      .catch(() => {});
+  }, []);
 
   /* ── File selection helpers ──────────────────────────────────────── */
 
@@ -185,6 +204,7 @@ export default function ImageManager() {
     formData.append("file", file);
     formData.append("categories", JSON.stringify(uploadCategories));
     formData.append("ageGroup", ageGroup);
+    if (uploadPackId) formData.append("contentPackId", uploadPackId);
     formData.append("altText", altText);
     formData.append(
       "tags",
@@ -207,6 +227,7 @@ export default function ImageManager() {
         setPreview(null);
         setAltText("");
         setTags("");
+        setUploadPackId("");
         if (fileInputRef.current) fileInputRef.current.value = "";
         fetchImages();
       } else {
@@ -254,6 +275,7 @@ export default function ImageManager() {
           ageGroup: updated.ageGroup,
           altText: updated.altText,
           tags: updated.tags,
+          contentPackId: updated.contentPackId ?? null,
         }),
       });
       if (res.ok) {
@@ -434,6 +456,27 @@ export default function ImageManager() {
                 placeholder="e.g. noah, ark, animals"
                 className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-coral-500"
               />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                Content pack{" "}
+                <span className="text-zinc-400">
+                  (optional — appears in that day/week/lesson)
+                </span>
+              </label>
+              <select
+                value={uploadPackId}
+                onChange={(e) => setUploadPackId(e.target.value)}
+                className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-coral-500"
+              >
+                <option value="">— Not linked —</option>
+                {packs.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.title}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </div>
@@ -705,6 +748,7 @@ export default function ImageManager() {
       {editing && (
         <EditImageModal
           image={editing}
+          packs={packs}
           onCancel={() => setEditing(null)}
           onSave={handleSaveEdit}
         />
@@ -717,10 +761,12 @@ export default function ImageManager() {
 
 function EditImageModal({
   image,
+  packs,
   onCancel,
   onSave,
 }: {
   image: ImageAsset;
+  packs: ContentPackOption[];
   onCancel: () => void;
   onSave: (updated: ImageAsset) => void;
 }) {
@@ -728,6 +774,9 @@ function EditImageModal({
   const [ageGroup, setAgeGroup] = useState<string>(image.ageGroup);
   const [altText, setAltText] = useState<string>(image.altText);
   const [tagsStr, setTagsStr] = useState<string>(image.tags.join(", "));
+  const [contentPackId, setContentPackId] = useState<string>(
+    image.contentPackId ?? "",
+  );
   const [saving, setSaving] = useState(false);
 
   const toggleCategory = (cat: string) => {
@@ -745,6 +794,7 @@ function EditImageModal({
       ageGroup,
       altText,
       tags,
+      contentPackId: contentPackId || null,
     });
     // Note: parent closes modal on success
     setSaving(false);
@@ -833,6 +883,28 @@ function EditImageModal({
               {AGE_GROUPS.map((ag) => (
                 <option key={ag} value={ag}>
                   {AGE_GROUP_LABELS[ag]}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Content pack */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+              Content pack{" "}
+              <span className="text-zinc-400">
+                (appears in that day/week/lesson)
+              </span>
+            </label>
+            <select
+              value={contentPackId}
+              onChange={(e) => setContentPackId(e.target.value)}
+              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-coral-500"
+            >
+              <option value="">— Not linked —</option>
+              {packs.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title}
                 </option>
               ))}
             </select>
