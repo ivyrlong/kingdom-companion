@@ -4,54 +4,15 @@ import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { getAgeGroup } from "@/lib/user";
 import { notFound } from "next/navigation";
-import BibleBooksBlitz from "@/components/games/BibleBooksBlitz";
-import ScriptureMemoryMatch from "@/components/games/ScriptureMemoryMatch";
-import BibleWordSearch from "@/components/games/BibleWordSearch";
-import NameThatScripture from "@/components/games/NameThatScripture";
-import TheocraticTrivia from "@/components/games/TheocraticTrivia";
-import WhoAmI from "@/components/games/WhoAmI";
-import QuietListeners from "@/components/games/QuietListeners";
-import Crossword from "@/components/games/Crossword";
-import Cryptogram from "@/components/games/Cryptogram";
-import Hangman from "@/components/games/Hangman";
-import JigsawPuzzle from "@/components/games/JigsawPuzzle";
-import ColoringPage from "@/components/games/ColoringPage";
-import MeetingBingo from "@/components/games/MeetingBingo";
+import {
+  GAME_COMPONENTS,
+  type GameProps,
+  type AgeGroup,
+  type ContentPackData,
+} from "@/components/games/registry";
 
-export interface ContentPackData {
-  vocabulary: string[];
-  scriptures: { reference: string; text: string }[];
-  keyPeople: string[];
-  themes: string[];
-  questions: { question: string; answer: string; options?: string[] }[];
-  keyPhrases: string[];
-}
-
-export type AgeGroup = "LITTLE_ONES" | "YOUTH" | "ADULT" | "FAMILY";
-
-export interface GameProps {
-  gameId: string;
-  userId?: string;
-  ageGroup?: AgeGroup;
-  contentPack?: ContentPackData;
-  contentPackTitle?: string;
-}
-
-const GAME_COMPONENTS: Record<string, React.ComponentType<GameProps>> = {
-  "bible-books-blitz": BibleBooksBlitz,
-  "scripture-memory-match": ScriptureMemoryMatch,
-  "bible-word-search": BibleWordSearch,
-  "name-that-scripture": NameThatScripture,
-  "theocratic-trivia": TheocraticTrivia,
-  "who-am-i": WhoAmI,
-  "quiet-listeners": QuietListeners,
-  "crossword": Crossword,
-  "cryptogram": Cryptogram,
-  "hangman": Hangman,
-  "jigsaw-puzzle": JigsawPuzzle as unknown as React.ComponentType<GameProps>,
-  "coloring-page": ColoringPage as unknown as React.ComponentType<GameProps>,
-  "meeting-bingo": MeetingBingo,
-};
+// Re-exported for back-compat: game components import these types from here.
+export type { GameProps, AgeGroup, ContentPackData };
 
 export default async function GamePage({
   params,

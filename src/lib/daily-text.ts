@@ -6,6 +6,8 @@ export interface DailyTextInput {
   scriptureRef: string;
   scriptureText: string;
   comment: string;
+  simplifiedComment: string;
+  featuredGameSlug?: string | null;
 }
 
 export interface DailyTextResult {
@@ -56,6 +58,8 @@ export async function createOrReplaceDailyText(
   input: DailyTextInput,
 ): Promise<DailyTextResult> {
   const { date, scriptureRef, scriptureText, comment } = input;
+  const simplifiedComment = input.simplifiedComment;
+  const featuredGameSlug = input.featuredGameSlug ?? null;
   const extracted = parseDailyText(scriptureRef, scriptureText, comment);
 
   const dateStr = date.toLocaleDateString("en-US", {
@@ -94,6 +98,9 @@ export async function createOrReplaceDailyText(
         context: "DAILY",
         date,
         sourceText: `${scriptureRef}\n\n${scriptureText}\n\n${comment}`,
+        comment,
+        simplifiedComment,
+        featuredGameSlug,
         vocabulary: extracted.vocabulary,
         scriptures: [{ reference: scriptureRef, text: scriptureText }],
         keyPeople: extracted.keyPeople,

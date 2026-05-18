@@ -128,6 +128,9 @@ model ContentPack {
   source        ContentSource
   context       GameContext      @default(EVERGREEN)
   sourceText    String?         // original pasted text (for reference)
+  comment          String?      // Daily Text: the normal comment (Youth/Adult)
+  simplifiedComment String?     // Daily Text: simplified lesson for Little Ones
+  featuredGameSlug String?      // Daily Text: game embedded on the Little Ones Today page
   date          DateTime?       // target date (for daily text) or null
   vocabulary    Json            // string[]
   scriptures    Json            // { reference: string, text: string }[]

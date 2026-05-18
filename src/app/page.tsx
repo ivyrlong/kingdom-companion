@@ -7,6 +7,7 @@ import { getAgeGroup } from "@/lib/user";
 import { getTodayRange } from "@/lib/week";
 import { resolveCardImage } from "@/lib/card-image";
 import GameCardGrid from "@/components/GameCardGrid";
+import { InlineGame, type AgeGroup } from "@/components/games/registry";
 
 export default async function Home() {
   const session = await auth();
@@ -50,16 +51,23 @@ export default async function Home() {
   const firstName = (session.user.name ?? "friend").split(" ")[0];
 
   const { todayStart, todayEnd } = getTodayRange();
+  const isLittle = userAgeGroup === "LITTLE_ONES";
+
+  const pack = await prisma.contentPack.findFirst({
+    where: {
+      source: "DAILY_TEXT",
+      date: { gte: todayStart, lt: todayEnd },
+    },
+    include: { images: true },
+  });
+
   const dailyInstances = await prisma.gameInstance.findMany({
     where: {
       context: "DAILY",
       isActive: true,
-      contentPack: {
-        source: "DAILY_TEXT",
-        date: { gte: todayStart, lt: todayEnd },
-      },
+      contentPack: { source: "DAILY_TEXT", date: { gte: todayStart, lt: todayEnd } },
     },
-    include: { game: true, contentPack: true },
+    include: { game: true },
   });
 
   const todayCards = dailyInstances.map((inst) => ({
@@ -73,31 +81,119 @@ export default async function Home() {
     imageUrl: resolveCardImage(inst.game.cardImages, userAgeGroup),
   }));
 
+  // Daily scripture + comments
+  const scripture = pack
+    ? ((pack.scriptures as { reference: string; text: string }[])[0] ?? null)
+    : null;
+  const dailyImage = pack?.images?.[0]
+    ? `/${pack.images[0].path}`
+    : null;
+
+  // Featured game for Little Ones (admin-chosen, plays inline)
+  let featured: { slug: string; gameId: string } | null = null;
+  if (isLittle && pack?.featuredGameSlug) {
+    const fg = await prisma.game.findUnique({
+      where: { slug: pack.featuredGameSlug },
+      select: { id: true, slug: true, isActive: true },
+    });
+    if (fg && fg.isActive) featured = { slug: fg.slug, gameId: fg.id };
+  }
+  const packData = pack
+    ? {
+        vocabulary: pack.vocabulary as string[],
+        scriptures: pack.scriptures as { reference: string; text: string }[],
+        keyPeople: pack.keyPeople as string[],
+        themes: pack.themes as string[],
+        questions: pack.questions as {
+          question: string;
+          answer: string;
+          options?: string[];
+        }[],
+        keyPhrases: pack.keyPhrases as string[],
+      }
+    : undefined;
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50 mb-1">
         Hi, {firstName}! 👋
       </h1>
       <p className="text-zinc-500 dark:text-zinc-400 mb-8">
-        Here are today&apos;s games from the Daily Text.
+        Here is today&apos;s Daily Text.
       </p>
 
-      {/* Today's games */}
+      {/* Daily Text */}
       <section className="mb-12">
-        <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50 mb-4">
-          Today
-        </h2>
-        {todayCards.length === 0 ? (
+        {!pack || !scripture ? (
           <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-8 text-center">
             <p className="text-zinc-500 dark:text-zinc-400">
-              No Daily Text games for today yet. In the meantime, explore the
-              games library below!
+              No Daily Text for today yet. In the meantime, explore the games
+              library below!
             </p>
           </div>
         ) : (
-          <GameCardGrid cards={todayCards} />
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-6 sm:p-8">
+            <p className="text-sm font-semibold text-coral-600 dark:text-coral-400 mb-1">
+              {scripture.reference}
+            </p>
+            <p className="text-lg text-zinc-800 dark:text-zinc-100 leading-relaxed mb-5">
+              “{scripture.text}”
+            </p>
+
+            {isLittle ? (
+              <div className="space-y-5">
+                {dailyImage && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={dailyImage}
+                    alt=""
+                    className="w-full max-h-72 object-contain rounded-xl bg-zinc-50 dark:bg-zinc-800"
+                  />
+                )}
+                {pack.simplifiedComment && (
+                  <div className="rounded-xl bg-amber-50 dark:bg-amber-900/15 border border-amber-200 dark:border-amber-800/40 p-5">
+                    <p className="text-sm font-semibold text-amber-700 dark:text-amber-300 mb-1">
+                      Today&apos;s lesson
+                    </p>
+                    <p className="text-base text-zinc-800 dark:text-zinc-100 leading-relaxed whitespace-pre-wrap">
+                      {pack.simplifiedComment}
+                    </p>
+                  </div>
+                )}
+                {featured && (
+                  <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-4 sm:p-6">
+                    <InlineGame
+                      slug={featured.slug}
+                      gameId={featured.gameId}
+                      userId={session.user.id}
+                      ageGroup={userAgeGroup as AgeGroup}
+                      contentPack={packData}
+                      contentPackTitle={pack.title}
+                      {...(dailyImage ? { imageUrl: dailyImage } : {})}
+                    />
+                  </div>
+                )}
+              </div>
+            ) : (
+              pack.comment && (
+                <p className="text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap">
+                  {pack.comment}
+                </p>
+              )
+            )}
+          </div>
         )}
       </section>
+
+      {/* Today's games */}
+      {todayCards.length > 0 && (
+        <section className="mb-12">
+          <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50 mb-4">
+            Today&apos;s games
+          </h2>
+          <GameCardGrid cards={todayCards} />
+        </section>
+      )}
 
       {/* Where to next */}
       <section className="grid grid-cols-1 sm:grid-cols-2 gap-4">

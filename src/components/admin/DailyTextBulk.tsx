@@ -18,8 +18,8 @@ interface BulkResult {
 }
 
 const TEMPLATE =
-  "date,scriptureRef,scriptureText,comment\n" +
-  '2026-01-01,Psalm 1:1,"Happy is the man that does not walk in the counsel of the wicked.","Today\'s text reminds us to choose our associations wisely."\n';
+  "date,scriptureRef,scriptureText,comment,simplifiedComment,featuredGame\n" +
+  '2026-01-01,Psalm 1:1,"Happy is the man that does not walk in the counsel of the wicked.","Today\'s text reminds us to choose our associations wisely.","Choosing good friends helps us stay close to Jehovah.",bible-word-search\n';
 
 export default function DailyTextBulk() {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -82,9 +82,10 @@ export default function DailyTextBulk() {
       <div className="rounded-xl bg-violet-50 dark:bg-violet-600/10 border border-violet-200 dark:border-violet-500/20 px-5 py-4 text-sm text-violet-700 dark:text-violet-300">
         Upload a CSV with columns{" "}
         <span className="font-mono font-semibold">
-          date, scriptureRef, scriptureText, comment
+          date, scriptureRef, scriptureText, comment, simplifiedComment
         </span>{" "}
-        — one row per day. Dates should be{" "}
+        (optional <span className="font-mono">featuredGame</span> = a game slug
+        for Little Ones) — one row per day. Dates should be{" "}
         <span className="font-mono">YYYY-MM-DD</span>. A day that already exists
         will be <span className="font-semibold">replaced</span>.
         <button

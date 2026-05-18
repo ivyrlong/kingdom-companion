@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/db";
 import { parseCsvObjects } from "@/lib/csv";
 import { createOrReplaceDailyText } from "@/lib/daily-text";
 
-const REQUIRED = ["date", "scriptureref", "scripturetext", "comment"];
+const REQUIRED = [
+  "date",
+  "scriptureref",
+  "scripturetext",
+  "comment",
+  "simplifiedcomment",
+];
 
 interface RowResult {
   line: number;
@@ -30,7 +37,7 @@ export async function POST(req: Request) {
   if (missing.length > 0) {
     return NextResponse.json(
       {
-        error: `Missing required column(s): ${missing.join(", ")}. Expected headers: date, scriptureRef, scriptureText, comment`,
+        error: `Missing required column(s): ${missing.join(", ")}. Expected headers: date, scriptureRef, scriptureText, comment, simplifiedComment (optional: featuredGame)`,
       },
       { status: 400 },
     );
@@ -38,6 +45,12 @@ export async function POST(req: Request) {
   if (rows.length === 0) {
     return NextResponse.json({ error: "No data rows found" }, { status: 400 });
   }
+
+  const validSlugs = new Set(
+    (await prisma.game.findMany({ select: { slug: true } })).map(
+      (g) => g.slug,
+    ),
+  );
 
   const results: RowResult[] = [];
   let created = 0;
@@ -58,12 +71,28 @@ export async function POST(req: Request) {
       });
       continue;
     }
-    if (!r.scriptureref || !r.scripturetext || !r.comment) {
+    if (
+      !r.scriptureref ||
+      !r.scripturetext ||
+      !r.comment ||
+      !r.simplifiedcomment
+    ) {
       results.push({
         line,
         date: dateRaw,
         status: "error",
-        message: "Missing scriptureRef, scriptureText, or comment",
+        message:
+          "Missing scriptureRef, scriptureText, comment, or simplifiedComment",
+      });
+      continue;
+    }
+    const featuredGame = r.featuredgame || "";
+    if (featuredGame && !validSlugs.has(featuredGame)) {
+      results.push({
+        line,
+        date: dateRaw,
+        status: "error",
+        message: `Unknown featuredGame slug: "${featuredGame}"`,
       });
       continue;
     }
@@ -74,6 +103,8 @@ export async function POST(req: Request) {
         scriptureRef: r.scriptureref,
         scriptureText: r.scripturetext,
         comment: r.comment,
+        simplifiedComment: r.simplifiedcomment,
+        featuredGameSlug: featuredGame || null,
       });
       if (res.replaced) replaced++;
       else created++;

@@ -9,6 +9,8 @@ const createSchema = z.object({
   scriptureRef: z.string().min(1),
   scriptureText: z.string().min(1),
   comment: z.string().min(1),
+  simplifiedComment: z.string().min(1),
+  featuredGameSlug: z.string().nullable().optional(),
 });
 
 async function requireAdmin() {
