@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useGameSession } from "@/hooks/useGameSession";
 import type { GameProps } from "@/app/(dashboard)/games/[slug]/page";
 import Confetti from "@/components/Confetti";
+import { useEncyclopedia } from "@/components/encyclopedia/EncyclopediaProvider";
 
 type Props = GameProps;
 
@@ -37,6 +38,7 @@ const DEFAULT_QUESTIONS: TriviaQuestion[] = [
 export default function TheocraticTrivia({ gameId, userId, contentPack, ageGroup }: Props) {
   const { status, finalScore, startSession, endSession, reset } =
     useGameSession({ gameId, userId });
+  const { discover } = useEncyclopedia();
 
   const [questions, setQuestions] = useState<TriviaQuestion[]>([]);
   const [currentQ, setCurrentQ] = useState(0);
@@ -106,7 +108,11 @@ export default function TheocraticTrivia({ gameId, userId, contentPack, ageGroup
       const isCorrect = answer === questions[currentQ].answer;
       const newCorrect = correctCount + (isCorrect ? 1 : 0);
       const newStreak = isCorrect ? streak + 1 : 0;
-      if (isCorrect) setCorrectCount(newCorrect);
+      if (isCorrect) {
+        setCorrectCount(newCorrect);
+        // Encyclopedia discovery — try the answer text
+        discover(answer, "theocratic-trivia");
+      }
       setStreak(newStreak);
 
       setTimeout(() => {
@@ -124,7 +130,7 @@ export default function TheocraticTrivia({ gameId, userId, contentPack, ageGroup
         }
       }, answerDelay);
     },
-    [showResult, questions, currentQ, correctCount, streak, timeElapsed, endSession, answerDelay]
+    [showResult, questions, currentQ, correctCount, streak, timeElapsed, endSession, answerDelay, discover]
   );
 
   const formatTime = (s: number) =>

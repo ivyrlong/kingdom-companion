@@ -355,12 +355,12 @@ export function IconTrumpet({ className, size = 24 }: IconProps) {
   );
 }
 
-/** Cross/stake (sacrifice) */
+/** Upright stake (torture stake — no crossbar) */
 export function IconStake({ className, size = 24 }: IconProps) {
   return (
     <svg {...d(size)} className={className}>
       <rect x="20" y="4" width="8" height="40" rx="2" fill="#B43D28" />
-      <rect x="10" y="12" width="28" height="8" rx="2" fill="#D95238" />
+      <circle cx="24" cy="14" r="4" fill="#D95238" opacity="0.6" />
     </svg>
   );
 }
@@ -487,7 +487,8 @@ export function getIconForConcept(keyword: string): React.ComponentType<IconProp
     creation: "earth",
     flood: "water",
     baptism: "water",
-    sacrifice: "stake",
+    sacrifice: "sheep",
+    ransom: "sheep",
     faith: "lamp",
     hope: "rainbow",
     love: "heart",
@@ -500,7 +501,7 @@ export function getIconForConcept(keyword: string): React.ComponentType<IconProp
     holy: "flame",
     angel: "star",
     heaven: "star",
-    sin: "stake",
+    sin: "prayer",
     forgiveness: "heart",
     mercy: "heart",
     truth: "lamp",

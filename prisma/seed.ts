@@ -127,6 +127,22 @@ const games = [
     ageGroup: "LITTLE_ONES" as const,
     category: "Puzzle",
   },
+  {
+    slug: "coloring-page",
+    title: "Coloring Page",
+    description:
+      "Bring Bible scenes to life with color! Little ones can tap to fill, while older ones can draw freehand.",
+    ageGroup: "FAMILY" as const,
+    category: "Creative",
+  },
+  {
+    slug: "meeting-bingo",
+    title: "Meeting Bingo",
+    description:
+      "Listen for words during the meeting and mark your card. Get three in a row to call BINGO!",
+    ageGroup: "LITTLE_ONES" as const,
+    category: "Meeting Tool",
+  },
 ];
 
 const badges = [

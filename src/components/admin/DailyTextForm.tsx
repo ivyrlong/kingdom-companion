@@ -9,6 +9,7 @@ export default function DailyTextForm() {
   const [scriptureRef, setScriptureRef] = useState("");
   const [scriptureText, setScriptureText] = useState("");
   const [comment, setComment] = useState("");
+  const [simplifiedComment, setSimplifiedComment] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState<{
@@ -26,7 +27,13 @@ export default function DailyTextForm() {
       const res = await fetch("/api/admin/daily-text", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date, scriptureRef, scriptureText, comment }),
+        body: JSON.stringify({
+          date,
+          scriptureRef,
+          scriptureText,
+          comment,
+          simplifiedComment,
+        }),
       });
 
       if (!res.ok) {
@@ -42,6 +49,7 @@ export default function DailyTextForm() {
       setScriptureRef("");
       setScriptureText("");
       setComment("");
+      setSimplifiedComment("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
     } finally {
@@ -116,6 +124,21 @@ export default function DailyTextForm() {
             rows={6}
             placeholder="Paste the Daily Text comment here..."
             className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-coral-500 font-mono text-sm"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+            Simplified comment{" "}
+            <span className="text-zinc-400">(for Little Ones — required)</span>
+          </label>
+          <textarea
+            value={simplifiedComment}
+            onChange={(e) => setSimplifiedComment(e.target.value)}
+            required
+            rows={4}
+            placeholder="A short, simple lesson from this scripture for young children..."
+            className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-coral-500"
           />
         </div>
 

@@ -69,6 +69,8 @@ export default async function ProfilePage() {
         currentAgeGroup={user.ageGroup}
         displayName={user.profile?.displayName ?? user.name ?? ""}
         congregation={user.profile?.congregation ?? ""}
+        encyclopediaMode={user.profile?.encyclopediaMode ?? "PLAYFUL"}
+        receiveCuratedFindings={user.profile?.receiveCuratedFindings ?? false}
       />
 
       {/* Badges */}

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import DailyTextForm from "./DailyTextForm";
+import DailyTextBulk from "./DailyTextBulk";
 
 interface ScriptureEntry {
   reference: string;
@@ -17,11 +19,12 @@ type Step = "paste" | "review" | "done";
 
 export default function ContentIngestion() {
   const [step, setStep] = useState<Step>("paste");
+  const [dailyMode, setDailyMode] = useState<"single" | "bulk">("single");
   const [sourceText, setSourceText] = useState("");
   const [title, setTitle] = useState("");
-  const [source, setSource] = useState<"WATCHTOWER" | "OCLM" | "EVERGREEN">(
-    "WATCHTOWER"
-  );
+  const [source, setSource] = useState<
+    "WATCHTOWER" | "OCLM" | "EVERGREEN" | "DAILY_TEXT"
+  >("WATCHTOWER");
   const [context, setContext] = useState<
     "EVERGREEN" | "MEETING_PREP" | "MEETING_LIVE"
   >("MEETING_PREP");
@@ -37,7 +40,6 @@ export default function ContentIngestion() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [newItem, setNewItem] = useState("");
 
   const handleParse = async () => {
     if (!sourceText.trim()) return;
@@ -134,32 +136,35 @@ export default function ContentIngestion() {
 
   const addToList = (
     list: string[],
-    setList: (v: string[]) => void
+    setList: (v: string[]) => void,
+    item: string,
   ) => {
-    if (newItem.trim() && !list.includes(newItem.trim())) {
-      setList([...list, newItem.trim()]);
-      setNewItem("");
+    if (item.trim() && !list.includes(item.trim())) {
+      setList([...list, item.trim()]);
     }
   };
 
   // ─── Step: Paste ───────────────────────────────────────────────────
 
   if (step === "paste") {
+    const isDaily = source === "DAILY_TEXT";
     return (
       <div className="space-y-6">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-              Title
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. WT Study — April 6"
-              className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-coral-500"
-            />
-          </div>
+          {!isDaily && (
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                Title
+              </label>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g. WT Study — April 6"
+                className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-coral-500"
+              />
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
               Source
@@ -174,66 +179,93 @@ export default function ContentIngestion() {
               <option value="WATCHTOWER">Watchtower Study</option>
               <option value="OCLM">Life & Ministry Workbook</option>
               <option value="EVERGREEN">Evergreen (General)</option>
+              <option value="DAILY_TEXT">Daily Text</option>
             </select>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-              Game Context
-            </label>
-            <select
-              value={context}
-              onChange={(e) =>
-                setContext(e.target.value as typeof context)
-              }
-              className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-coral-500"
+          {!isDaily && (
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                Game Context
+              </label>
+              <select
+                value={context}
+                onChange={(e) =>
+                  setContext(e.target.value as typeof context)
+                }
+                className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-coral-500"
+              >
+                <option value="MEETING_PREP">Meeting Preparation</option>
+                <option value="MEETING_LIVE">Meeting Live</option>
+                <option value="EVERGREEN">Evergreen</option>
+              </select>
+            </div>
+          )}
+        </div>
+
+        {isDaily ? (
+          <div className="space-y-6">
+            <div className="flex gap-2">
+              {(["single", "bulk"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setDailyMode(m)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium border transition ${
+                    dailyMode === m
+                      ? "bg-coral-600 border-coral-600 text-white"
+                      : "bg-white dark:bg-zinc-800 border-zinc-300 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:border-coral-400"
+                  }`}
+                >
+                  {m === "single" ? "Single entry" : "Bulk upload (CSV)"}
+                </button>
+              ))}
+            </div>
+            {dailyMode === "single" ? <DailyTextForm /> : <DailyTextBulk />}
+          </div>
+        ) : (
+          <>
+            {source !== "EVERGREEN" && (
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                  Week Of (Monday)
+                </label>
+                <input
+                  type="date"
+                  value={weekOf}
+                  onChange={(e) => setWeekOf(e.target.value)}
+                  className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-coral-500"
+                />
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                Paste Article Text
+              </label>
+              <textarea
+                value={sourceText}
+                onChange={(e) => setSourceText(e.target.value)}
+                rows={12}
+                placeholder="Paste the Watchtower Study article or OCLM workbook text here..."
+                className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-coral-500 font-mono text-sm"
+              />
+            </div>
+
+            {error && (
+              <div className="text-red-600 dark:text-red-400 text-sm">
+                {error}
+              </div>
+            )}
+
+            <button
+              onClick={handleParse}
+              disabled={loading || !title.trim() || !sourceText.trim()}
+              className="px-6 py-2.5 bg-coral-600 hover:bg-coral-700 disabled:bg-coral-400 text-white font-medium rounded-lg transition"
             >
-              <option value="MEETING_PREP">Meeting Preparation</option>
-              <option value="MEETING_LIVE">Meeting Live</option>
-              <option value="EVERGREEN">Evergreen</option>
-            </select>
-          </div>
-        </div>
-
-        {source !== "EVERGREEN" && (
-          <div>
-            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-              Week Of (Monday)
-            </label>
-            <input
-              type="date"
-              value={weekOf}
-              onChange={(e) => setWeekOf(e.target.value)}
-              className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-coral-500"
-            />
-          </div>
+              {loading ? "Extracting..." : "Extract Content"}
+            </button>
+          </>
         )}
-
-        <div>
-          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-            Paste Article Text
-          </label>
-          <textarea
-            value={sourceText}
-            onChange={(e) => setSourceText(e.target.value)}
-            rows={12}
-            placeholder="Paste the Watchtower Study article or OCLM workbook text here..."
-            className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-coral-500 font-mono text-sm"
-          />
-        </div>
-
-        {error && (
-          <div className="text-red-600 dark:text-red-400 text-sm">
-            {error}
-          </div>
-        )}
-
-        <button
-          onClick={handleParse}
-          disabled={loading || !title.trim() || !sourceText.trim()}
-          className="px-6 py-2.5 bg-coral-600 hover:bg-coral-700 disabled:bg-coral-400 text-white font-medium rounded-lg transition"
-        >
-          {loading ? "Extracting..." : "Extract Content"}
-        </button>
       </div>
     );
   }
@@ -295,13 +327,8 @@ export default function ContentIngestion() {
         title="Vocabulary"
         description={`${vocabulary.length} terms — used for Word Search`}
         items={vocabulary}
-        onAdd={(item) =>
-          !vocabulary.includes(item) && setVocabulary([...vocabulary, item])
-        }
         onRemove={(i) => setVocabulary(vocabulary.filter((_, idx) => idx !== i))}
-        newItem={newItem}
-        setNewItem={setNewItem}
-        addToList={() => addToList(vocabulary, setVocabulary)}
+        onAdd={(item) => addToList(vocabulary, setVocabulary, item)}
       />
 
       {/* Scriptures */}
@@ -365,13 +392,8 @@ export default function ContentIngestion() {
         title="Key People"
         description={`${keyPeople.length} names — used for Who Am I?`}
         items={keyPeople}
-        onAdd={(item) =>
-          !keyPeople.includes(item) && setKeyPeople([...keyPeople, item])
-        }
         onRemove={(i) => setKeyPeople(keyPeople.filter((_, idx) => idx !== i))}
-        newItem={newItem}
-        setNewItem={setNewItem}
-        addToList={() => addToList(keyPeople, setKeyPeople)}
+        onAdd={(item) => addToList(keyPeople, setKeyPeople, item)}
       />
 
       {/* Themes */}
@@ -379,13 +401,8 @@ export default function ContentIngestion() {
         title="Themes"
         description={`${themes.length} themes`}
         items={themes}
-        onAdd={(item) =>
-          !themes.includes(item) && setThemes([...themes, item])
-        }
         onRemove={(i) => setThemes(themes.filter((_, idx) => idx !== i))}
-        newItem={newItem}
-        setNewItem={setNewItem}
-        addToList={() => addToList(themes, setThemes)}
+        onAdd={(item) => addToList(themes, setThemes, item)}
       />
 
       {/* Key Phrases */}
@@ -393,16 +410,10 @@ export default function ContentIngestion() {
         title="Key Phrases"
         description={`${keyPhrases.length} phrases — used for Meeting Bingo, Tap When You Hear`}
         items={keyPhrases}
-        onAdd={(item) =>
-          !keyPhrases.includes(item) &&
-          setKeyPhrases([...keyPhrases, item])
-        }
         onRemove={(i) =>
           setKeyPhrases(keyPhrases.filter((_, idx) => idx !== i))
         }
-        newItem={newItem}
-        setNewItem={setNewItem}
-        addToList={() => addToList(keyPhrases, setKeyPhrases)}
+        onAdd={(item) => addToList(keyPhrases, setKeyPhrases, item)}
       />
 
       {/* Questions */}
@@ -495,19 +506,23 @@ function EditableListSection({
   description,
   items,
   onRemove,
-  newItem,
-  setNewItem,
-  addToList,
+  onAdd,
 }: {
   title: string;
   description: string;
   items: string[];
   onAdd: (item: string) => void;
   onRemove: (index: number) => void;
-  newItem: string;
-  setNewItem: (v: string) => void;
-  addToList: () => void;
 }) {
+  const [value, setValue] = useState("");
+
+  const handleAdd = () => {
+    if (value.trim()) {
+      onAdd(value.trim());
+      setValue("");
+    }
+  };
+
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-6">
       <h3 className="font-semibold text-zinc-900 dark:text-zinc-50 mb-1">
@@ -535,14 +550,14 @@ function EditableListSection({
       </div>
       <div className="flex gap-2">
         <input
-          value={newItem}
-          onChange={(e) => setNewItem(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && addToList()}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleAdd()}
           className="flex-1 px-2 py-1 rounded border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-sm"
           placeholder={`Add ${title.toLowerCase()}...`}
         />
         <button
-          onClick={addToList}
+          onClick={handleAdd}
           className="text-sm text-coral-600 hover:text-coral-700 px-2"
         >
           Add

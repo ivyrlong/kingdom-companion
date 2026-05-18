@@ -5,6 +5,7 @@ import { useGameSession } from "@/hooks/useGameSession";
 import type { GameProps } from "@/app/(dashboard)/games/[slug]/page";
 import Confetti from "@/components/Confetti";
 import { getIconForConcept } from "@/components/icons/BibleIcons";
+import { useEncyclopedia } from "@/components/encyclopedia/EncyclopediaProvider";
 
 type Props = GameProps;
 
@@ -115,6 +116,7 @@ function generateGrid(
 export default function BibleWordSearch({ gameId, userId, contentPack, ageGroup }: Props) {
   const { status, finalScore, startSession, endSession, reset } =
     useGameSession({ gameId, userId });
+  const { discover } = useEncyclopedia();
 
   const [grid, setGrid] = useState<string[][]>([]);
   const [placedWords, setPlacedWords] = useState<PlacedWord[]>([]);
@@ -187,6 +189,9 @@ export default function BibleWordSearch({ gameId, userId, contentPack, ageGroup 
           newFound.add(pw.word);
           setFoundWords(newFound);
 
+          // Encyclopedia discovery (Little Ones / Family only — no-op otherwise)
+          discover(pw.word, "bible-word-search");
+
           if (newFound.size === placedWords.length) {
             if (timerRef.current) clearInterval(timerRef.current);
             const timeBonus = Math.max(0, 180 - timeElapsed) * 5;
@@ -198,7 +203,7 @@ export default function BibleWordSearch({ gameId, userId, contentPack, ageGroup 
       }
       return false;
     },
-    [getSelectedWord, placedWords, foundWords, timeElapsed, endSession]
+    [getSelectedWord, placedWords, foundWords, timeElapsed, endSession, discover]
   );
 
   const handleCellMouseDown = (r: number, c: number) => {

@@ -5,7 +5,7 @@ import { z } from "zod";
 
 const createSchema = z.object({
   title: z.string().min(1),
-  source: z.enum(["WATCHTOWER", "OCLM", "EVERGREEN"]),
+  source: z.enum(["WATCHTOWER", "OCLM", "EVERGREEN", "DAILY_TEXT"]),
   context: z.enum(["EVERGREEN", "MEETING_PREP", "MEETING_LIVE", "DAILY"]),
   sourceText: z.string().optional(),
   vocabulary: z.array(z.string()),
@@ -34,6 +34,11 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const context = searchParams.get("context");
+  // Default high enough for a full year of daily texts; capped to stay sane.
+  const limit = Math.min(
+    parseInt(searchParams.get("limit") || "1000", 10) || 1000,
+    2000,
+  );
 
   const packs = await prisma.contentPack.findMany({
     where: context
@@ -41,7 +46,7 @@ export async function GET(req: Request) {
       : undefined,
     include: { meetingWeek: true, _count: { select: { instances: true } } },
     orderBy: { createdAt: "desc" },
-    take: 50,
+    take: limit,
   });
 
   return NextResponse.json(packs);
@@ -136,6 +141,8 @@ function isGameCompatible(
       return data.keyPhrases.length >= 9;
     case "tap-when-you-hear":
       return data.keyPhrases.length >= 5 || data.vocabulary.length >= 5;
+    case "coloring-page":
+      return false; // Requires uploaded images, not auto-generated
     default:
       return false;
   }

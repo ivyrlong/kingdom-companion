@@ -7,6 +7,8 @@ interface ProfileSettingsProps {
   currentAgeGroup: string;
   displayName: string;
   congregation: string;
+  encyclopediaMode: string;
+  receiveCuratedFindings: boolean;
 }
 
 const AGE_GROUPS = [
@@ -20,18 +22,24 @@ export default function ProfileSettings({
   currentAgeGroup,
   displayName: initialName,
   congregation: initialCong,
+  encyclopediaMode: initialMode,
+  receiveCuratedFindings: initialReceive,
 }: ProfileSettingsProps) {
   const router = useRouter();
   const [ageGroup, setAgeGroup] = useState(currentAgeGroup);
   const [displayName, setDisplayName] = useState(initialName);
   const [congregation, setCongregation] = useState(initialCong);
+  const [encMode, setEncMode] = useState(initialMode);
+  const [receiveCurated, setReceiveCurated] = useState(initialReceive);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
   const hasChanges =
     ageGroup !== currentAgeGroup ||
     displayName !== initialName ||
-    congregation !== initialCong;
+    congregation !== initialCong ||
+    encMode !== initialMode ||
+    receiveCurated !== initialReceive;
 
   const handleSave = async () => {
     setSaving(true);
@@ -40,7 +48,13 @@ export default function ProfileSettings({
       const res = await fetch("/api/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ageGroup, displayName, congregation }),
+        body: JSON.stringify({
+          ageGroup,
+          displayName,
+          congregation,
+          encyclopediaMode: encMode,
+          receiveCuratedFindings: receiveCurated,
+        }),
       });
       if (res.ok) {
         setSaved(true);
@@ -120,6 +134,79 @@ export default function ProfileSettings({
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Encyclopedia */}
+        <div>
+          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3">
+            Encyclopedia
+          </label>
+          {ageGroup === "LITTLE_ONES" ? (
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 max-w-lg">
+              Little Ones use the picture{" "}
+              <span className="font-medium">Sticker Book</span> — nothing to set
+              here.
+            </p>
+          ) : ageGroup === "ADULT" ? (
+            <label className="flex items-start gap-3 max-w-lg cursor-pointer">
+              <input
+                type="checkbox"
+                checked={receiveCurated}
+                onChange={(e) => setReceiveCurated(e.target.checked)}
+                className="mt-1"
+              />
+              <span>
+                <span className="block text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                  Receive curated discoveries
+                </span>
+                <span className="block text-xs text-zinc-500 dark:text-zinc-400">
+                  Your Study Notebook holds your own references by default. Turn
+                  this on to also collect admin-curated finds while you play.
+                </span>
+              </span>
+            </label>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg">
+              {[
+                {
+                  value: "PLAYFUL",
+                  label: "Playful",
+                  description:
+                    "Collectible stickers with mystery silhouettes — great for younger readers",
+                },
+                {
+                  value: "STUDY",
+                  label: "Study",
+                  description:
+                    "Notebook style: scriptures and your own entries lead — great for teens",
+                },
+              ].map((m) => (
+                <button
+                  key={m.value}
+                  type="button"
+                  onClick={() => setEncMode(m.value)}
+                  className={`text-left p-4 rounded-xl border-2 transition ${
+                    encMode === m.value
+                      ? "border-coral-500 bg-coral-50 dark:bg-coral-900/20"
+                      : "border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600"
+                  }`}
+                >
+                  <div
+                    className={`text-sm font-semibold ${
+                      encMode === m.value
+                        ? "text-coral-700 dark:text-coral-300"
+                        : "text-zinc-900 dark:text-zinc-100"
+                    }`}
+                  >
+                    {m.label}
+                  </div>
+                  <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                    {m.description}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Save */}

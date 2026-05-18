@@ -2,51 +2,17 @@ export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { getAgeGroup } from "@/lib/user";
 import { notFound } from "next/navigation";
-import BibleBooksBlitz from "@/components/games/BibleBooksBlitz";
-import ScriptureMemoryMatch from "@/components/games/ScriptureMemoryMatch";
-import BibleWordSearch from "@/components/games/BibleWordSearch";
-import NameThatScripture from "@/components/games/NameThatScripture";
-import TheocraticTrivia from "@/components/games/TheocraticTrivia";
-import WhoAmI from "@/components/games/WhoAmI";
-import QuietListeners from "@/components/games/QuietListeners";
-import Crossword from "@/components/games/Crossword";
-import Cryptogram from "@/components/games/Cryptogram";
-import Hangman from "@/components/games/Hangman";
-import JigsawPuzzle from "@/components/games/JigsawPuzzle";
+import {
+  GAME_COMPONENTS,
+  type GameProps,
+  type AgeGroup,
+  type ContentPackData,
+} from "@/components/games/registry";
 
-export interface ContentPackData {
-  vocabulary: string[];
-  scriptures: { reference: string; text: string }[];
-  keyPeople: string[];
-  themes: string[];
-  questions: { question: string; answer: string; options?: string[] }[];
-  keyPhrases: string[];
-}
-
-export type AgeGroup = "LITTLE_ONES" | "YOUTH" | "ADULT" | "FAMILY";
-
-export interface GameProps {
-  gameId: string;
-  userId?: string;
-  ageGroup?: AgeGroup;
-  contentPack?: ContentPackData;
-  contentPackTitle?: string;
-}
-
-const GAME_COMPONENTS: Record<string, React.ComponentType<GameProps>> = {
-  "bible-books-blitz": BibleBooksBlitz,
-  "scripture-memory-match": ScriptureMemoryMatch,
-  "bible-word-search": BibleWordSearch,
-  "name-that-scripture": NameThatScripture,
-  "theocratic-trivia": TheocraticTrivia,
-  "who-am-i": WhoAmI,
-  "quiet-listeners": QuietListeners,
-  "crossword": Crossword,
-  "cryptogram": Cryptogram,
-  "hangman": Hangman,
-  "jigsaw-puzzle": JigsawPuzzle as unknown as React.ComponentType<GameProps>,
-};
+// Re-exported for back-compat: game components import these types from here.
+export type { GameProps, AgeGroup, ContentPackData };
 
 export default async function GamePage({
   params,
@@ -65,6 +31,7 @@ export default async function GamePage({
   if (!game || !game.isActive) notFound();
 
   const session = await auth();
+  const userAgeGroup = await getAgeGroup(session?.user?.id);
 
   // Load content pack if specified
   let contentPack: ContentPackData | undefined;
@@ -87,7 +54,21 @@ export default async function GamePage({
         keyPhrases: pack.keyPhrases as string[],
       };
       contentPackTitle = pack.title;
-      if (pack.images.length > 0) {
+
+      // For coloring pages, pick the right image category based on user age
+      if (slug === "coloring-page") {
+        const preferredCategory = userAgeGroup === "LITTLE_ONES" ? "COLORING_SVG" : "COLORING_OUTLINE";
+        const coloringImages = await prisma.imageAsset.findMany({
+          where: {
+            contentPackId: pack.id,
+            categories: { hasSome: ["COLORING_SVG", "COLORING_OUTLINE"] },
+          },
+          take: 2,
+        });
+        const picked = coloringImages.find((i) => i.categories.includes(preferredCategory))
+          ?? coloringImages[0];
+        if (picked) imageUrl = `/${picked.path}`;
+      } else if (pack.images.length > 0) {
         imageUrl = `/${pack.images[0].path}`;
       }
     }
@@ -118,7 +99,7 @@ export default async function GamePage({
       <GameComponent
         gameId={game.id}
         userId={session?.user?.id}
-        ageGroup={(session?.user as { ageGroup?: string })?.ageGroup as AgeGroup | undefined}
+        ageGroup={userAgeGroup as AgeGroup}
         contentPack={contentPack}
         contentPackTitle={contentPackTitle}
         {...(imageUrl && { imageUrl })}

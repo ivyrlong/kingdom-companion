@@ -20,11 +20,14 @@ model User {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  accounts     Account[]
-  sessions     Session[]
-  profile      Profile?
-  gameSessions GameSession[]
-  scores       Score[]
+  accounts                Account[]
+  sessions                Session[]
+  profile                 Profile?
+  gameSessions            GameSession[]
+  scores                  Score[]
+  encyclopediaCollections UserEncyclopediaCollection[]
+  personalEntries         PersonalEntry[]
+  dailyResponses          DailyResponse[]
 }
 
 model Account {
@@ -73,6 +76,11 @@ model Profile {
   xp           Int      @default(0)
   level        Int      @default(1)
   congregation String?
+  // Encyclopedia preferences. Mode applies to Youth/Family (Little Ones is
+  // always playful, Adult always notebook). receiveCuratedFindings is the
+  // Adult opt-in for admin-curated discoveries (off by default).
+  encyclopediaMode       EncyclopediaMode @default(PLAYFUL)
+  receiveCuratedFindings Boolean          @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -89,6 +97,10 @@ model Game {
   ageGroup    AgeGroup
   category    String
   imageUrl    String?
+  // Per-audience card art. Keys: "SHARED" | "LITTLE_ONES" | "YOUTH" | "ADULT" | "FAMILY"
+  // -> image path (e.g. "/uploads/abc.png"). Resolved by viewer age group with
+  // fallback to SHARED. Empty object means no custom art (UI shows a placeholder).
+  cardImages  Json     @default("{}")
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -117,6 +129,9 @@ model ContentPack {
   source        ContentSource
   context       GameContext      @default(EVERGREEN)
   sourceText    String?         // original pasted text (for reference)
+  comment          String?      // Daily Text: the normal comment (Youth/Adult)
+  simplifiedComment String?     // Daily Text: simplified lesson for Little Ones
+  featuredGameSlug String?      // Daily Text: game embedded on the Little Ones Today page
   date          DateTime?       // target date (for daily text) or null
   vocabulary    Json            // string[]
   scriptures    Json            // { reference: string, text: string }[]
@@ -131,6 +146,7 @@ model ContentPack {
   meetingWeek MeetingWeek?   @relation(fields: [meetingWeekId], references: [id], onDelete: SetNull)
   instances   GameInstance[]
   images      ImageAsset[]
+  dailyResponses DailyResponse[]
 
   @@index([context])
   @@index([meetingWeekId])
@@ -195,30 +211,117 @@ model Badge {
 
 // ImageAsset = uploaded images for visual games (puzzles, hidden objects, coloring).
 model ImageAsset {
-  id            String       @id @default(cuid())
-  filename      String       // original filename
-  path          String       // relative path from public/ (e.g. "uploads/abc123.jpg")
-  altText       String       @default("")
-  category      ImageCategory
-  ageGroup      AgeGroup     @default(FAMILY)
-  tags          Json         @default("[]") // string[]
+  id            String          @id @default(cuid())
+  filename      String          // original filename
+  path          String          // relative path from public/ (e.g. "uploads/abc123.jpg")
+  altText       String          @default("")
+  categories    ImageCategory[] @default([])
+  ageGroup      AgeGroup        @default(FAMILY)
+  tags          Json            @default("[]") // string[]
   width         Int?
   height        Int?
   contentPackId String?
-  createdAt     DateTime     @default(now())
+  createdAt     DateTime        @default(now())
 
   contentPack ContentPack? @relation(fields: [contentPackId], references: [id], onDelete: SetNull)
 
-  @@index([category])
+  @@index([contentPackId])
+}
+
+// EncyclopediaEntry = curated word/item kids can collect across games (Little Ones).
+model EncyclopediaEntry {
+  id          String               @id @default(cuid())
+  slug        String               @unique // canonical lowercase, e.g. "ark"
+  term        String               // display name, e.g. "Ark"
+  definition  String               // 1–2 sentence kid-friendly definition
+  imageUrl    String?              // path to image (from /public/uploads/...)
+  bibleRef    String?              // optional, e.g. "Genesis 6:14"
+  category    EncyclopediaCategory @default(THINGS)
+  triggers    Json                 @default("[]") // string[] — alternate slugs/keywords that trigger discovery
+  ageGroup    AgeGroup             @default(LITTLE_ONES)
+  isActive    Boolean              @default(true)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  collections UserEncyclopediaCollection[]
+
+  @@index([ageGroup])
+  @@index([isActive])
+}
+
+// UserEncyclopediaCollection = which entries each user has collected, and where.
+model UserEncyclopediaCollection {
+  id          String   @id @default(cuid())
+  userId      String
+  entryId     String
+  collectedAt DateTime  @default(now())
+  viewedAt    DateTime? // first time opened in the book; null = still "New"
+  source      String?   // game slug where it was discovered
+
+  user  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entry EncyclopediaEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, entryId])
+  @@index([userId])
+}
+
+enum EncyclopediaCategory {
+  PEOPLE
+  PLACES
+  THINGS
+  EVENTS
+}
+
+enum EncyclopediaMode {
+  PLAYFUL
+  STUDY
+}
+
+// PersonalEntry = a user-authored encyclopedia entry (Youth / Family / Adult).
+// Lives alongside collected curated entries in the same book.
+model PersonalEntry {
+  id        String               @id @default(cuid())
+  userId    String
+  term      String
+  category  EncyclopediaCategory @default(THINGS)
+  bibleRef  String?
+  note      String
+  imageUrl  String?
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// DailyResponse = a Youth user's written answer to a daily-text question.
+// Visible to admins/parents for follow-up.
+model DailyResponse {
+  id            String   @id @default(cuid())
+  userId        String
+  contentPackId String
+  questionIndex Int
+  question      String   // snapshot of the question text at answer time
+  response      String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contentPack ContentPack @relation(fields: [contentPackId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, contentPackId, questionIndex])
   @@index([contentPackId])
 }
 
 enum ImageCategory {
-  SCENE         // For hidden objects, backgrounds
-  CHARACTER     // Bible character illustrations
-  ILLUSTRATION  // General illustrations for puzzles
-  OUTLINE       // Line art for coloring pages
-  PHOTO         // Photos
+  SCENE              // For hidden objects, backgrounds
+  CHARACTER          // Bible character illustrations
+  ILLUSTRATION       // General illustrations for puzzles
+  OUTLINE            // Line art for coloring pages
+  PHOTO              // Photos
+  COLORING_SVG       // SVG files with regions for tap-to-fill (Little Ones)
+  COLORING_OUTLINE   // Raster outlines for freehand drawing (Youth/Adult)
 }
 
 // ─── Enums ─────────────────────────────────────────────────────────────

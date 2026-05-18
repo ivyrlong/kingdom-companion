@@ -43,12 +43,6 @@ export default async function AdminPage() {
         </h1>
         <div className="flex gap-3">
           <Link
-            href="/admin/daily-text"
-            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-lg transition"
-          >
-            Daily Text
-          </Link>
-          <Link
             href="/admin/content"
             className="px-4 py-2 bg-coral-600 hover:bg-coral-700 text-white text-sm font-medium rounded-lg transition"
           >
@@ -59,6 +53,24 @@ export default async function AdminPage() {
             className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition"
           >
             Images
+          </Link>
+          <Link
+            href="/admin/encyclopedia"
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition"
+          >
+            Encyclopedia
+          </Link>
+          <Link
+            href="/admin/games"
+            className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium rounded-lg transition"
+          >
+            Game Images
+          </Link>
+          <Link
+            href="/admin/daily-responses"
+            className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition"
+          >
+            Daily Responses
           </Link>
         </div>
       </div>

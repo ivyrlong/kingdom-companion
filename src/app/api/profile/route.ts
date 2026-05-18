@@ -7,6 +7,8 @@ const updateSchema = z.object({
   ageGroup: z.enum(["LITTLE_ONES", "YOUTH", "ADULT", "FAMILY"]).optional(),
   displayName: z.string().min(1).max(50).optional(),
   congregation: z.string().max(100).optional(),
+  encyclopediaMode: z.enum(["PLAYFUL", "STUDY"]).optional(),
+  receiveCuratedFindings: z.boolean().optional(),
 });
 
 export async function PATCH(req: Request) {
@@ -24,7 +26,13 @@ export async function PATCH(req: Request) {
     );
   }
 
-  const { ageGroup, displayName, congregation } = parsed.data;
+  const {
+    ageGroup,
+    displayName,
+    congregation,
+    encyclopediaMode,
+    receiveCuratedFindings,
+  } = parsed.data;
 
   // Update user age group if provided
   if (ageGroup) {
@@ -35,13 +43,16 @@ export async function PATCH(req: Request) {
   }
 
   // Update profile fields if provided
-  if (displayName !== undefined || congregation !== undefined) {
+  const profileData = {
+    ...(displayName !== undefined && { displayName }),
+    ...(congregation !== undefined && { congregation }),
+    ...(encyclopediaMode !== undefined && { encyclopediaMode }),
+    ...(receiveCuratedFindings !== undefined && { receiveCuratedFindings }),
+  };
+  if (Object.keys(profileData).length > 0) {
     await prisma.profile.update({
       where: { userId: session.user.id },
-      data: {
-        ...(displayName !== undefined && { displayName }),
-        ...(congregation !== undefined && { congregation }),
-      },
+      data: profileData,
     });
   }
 
