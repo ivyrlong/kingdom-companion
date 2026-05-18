@@ -23,6 +23,8 @@ const updateSchema = z.object({
     )
     .optional(),
   keyPhrases: z.array(z.string()).optional(),
+  comment: z.string().nullable().optional(),
+  simplifiedComment: z.string().nullable().optional(),
 });
 
 async function authorize() {

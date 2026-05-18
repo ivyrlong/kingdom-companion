@@ -26,6 +26,8 @@ interface ContentPack {
   themes: string[];
   questions: QuestionEntry[];
   keyPhrases: string[];
+  comment?: string | null;
+  simplifiedComment?: string | null;
   createdAt: string;
   meetingWeek?: { id: string; weekOf: string; title: string } | null;
   _count?: { instances: number };
@@ -150,6 +152,8 @@ export default function ContentPackManager() {
           themes: editData.themes,
           questions: editData.questions,
           keyPhrases: editData.keyPhrases,
+          comment: editData.comment ?? null,
+          simplifiedComment: editData.simplifiedComment ?? null,
         }),
       });
 
@@ -655,6 +659,44 @@ function ContentPackEditor({
           </select>
         </div>
       </div>
+
+      {(data.context === "DAILY" || data.source === "DAILY_TEXT") && (
+        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-6 space-y-4">
+          <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">
+            Daily Text
+          </h3>
+          <div>
+            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+              Comment <span className="text-zinc-400">(Youth / Adult)</span>
+            </label>
+            <textarea
+              value={data.comment ?? ""}
+              onChange={(e) => onChange({ ...data, comment: e.target.value })}
+              rows={5}
+              className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-coral-500 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+              Simplified comment{" "}
+              <span className="text-zinc-400">(Little Ones)</span>
+            </label>
+            <textarea
+              value={data.simplifiedComment ?? ""}
+              onChange={(e) =>
+                onChange({ ...data, simplifiedComment: e.target.value })
+              }
+              rows={4}
+              className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-coral-500 text-sm"
+            />
+          </div>
+          <p className="text-xs text-zinc-400">
+            Pictures for this day are managed with the{" "}
+            <span className="font-medium">Images</span> button on the pack
+            list.
+          </p>
+        </div>
+      )}
 
       {/* Vocabulary */}
       <ListEditor
