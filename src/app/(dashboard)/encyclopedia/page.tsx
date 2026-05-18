@@ -11,10 +11,7 @@ export default async function EncyclopediaPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
-  const userAgeGroup =
-    (session.user as { ageGroup?: string }).ageGroup || "FAMILY";
-
-  const bundle = await loadEncyclopediaBundle(session.user.id, userAgeGroup);
+  const bundle = await loadEncyclopediaBundle(session.user.id);
 
   if (!bundle) {
     return (

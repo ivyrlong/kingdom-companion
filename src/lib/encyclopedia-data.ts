@@ -21,15 +21,24 @@ export interface EncyclopediaBundle {
  */
 export async function loadEncyclopediaBundle(
   userId: string | undefined | null,
-  ageGroup: string,
 ): Promise<EncyclopediaBundle | null> {
   if (!userId) return null;
 
-  const profile = await prisma.profile.findUnique({
-    where: { userId },
-    select: { encyclopediaMode: true, receiveCuratedFindings: true },
+  // Age group is read from the DB (source of truth) — not the session token,
+  // which goes stale after a profile age-group change until the JWT re-signs.
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      ageGroup: true,
+      profile: {
+        select: { encyclopediaMode: true, receiveCuratedFindings: true },
+      },
+    },
   });
-  const caps = getEncyclopediaCapabilities(ageGroup, profile ?? undefined);
+  if (!user) return null;
+
+  const ageGroup = user.ageGroup;
+  const caps = getEncyclopediaCapabilities(ageGroup, user.profile ?? undefined);
   if (!caps.enabled) return null;
 
   const items: EncyclopediaItem[] = [];

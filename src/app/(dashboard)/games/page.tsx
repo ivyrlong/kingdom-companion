@@ -15,7 +15,7 @@ export default async function ExplorePage() {
   const userAgeGroup =
     (session?.user as { ageGroup?: string })?.ageGroup ?? "YOUTH";
 
-  const bundle = await loadEncyclopediaBundle(userId, userAgeGroup);
+  const bundle = await loadEncyclopediaBundle(userId);
 
   // Evergreen games — the always-available standalone games.
   const games = await prisma.game.findMany({
