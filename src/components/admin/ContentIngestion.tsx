@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import DailyTextForm from "./DailyTextForm";
+import DailyTextBulk from "./DailyTextBulk";
 
 interface ScriptureEntry {
   reference: string;
@@ -18,6 +19,7 @@ type Step = "paste" | "review" | "done";
 
 export default function ContentIngestion() {
   const [step, setStep] = useState<Step>("paste");
+  const [dailyMode, setDailyMode] = useState<"single" | "bulk">("single");
   const [sourceText, setSourceText] = useState("");
   const [title, setTitle] = useState("");
   const [source, setSource] = useState<
@@ -201,7 +203,25 @@ export default function ContentIngestion() {
         </div>
 
         {isDaily ? (
-          <DailyTextForm />
+          <div className="space-y-6">
+            <div className="flex gap-2">
+              {(["single", "bulk"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setDailyMode(m)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium border transition ${
+                    dailyMode === m
+                      ? "bg-coral-600 border-coral-600 text-white"
+                      : "bg-white dark:bg-zinc-800 border-zinc-300 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:border-coral-400"
+                  }`}
+                >
+                  {m === "single" ? "Single entry" : "Bulk upload (CSV)"}
+                </button>
+              ))}
+            </div>
+            {dailyMode === "single" ? <DailyTextForm /> : <DailyTextBulk />}
+          </div>
         ) : (
           <>
             {source !== "EVERGREEN" && (
