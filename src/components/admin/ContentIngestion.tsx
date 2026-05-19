@@ -12,6 +12,10 @@ interface ScriptureEntry {
 interface QuestionEntry {
   question: string;
   answer: string;
+  // Watchtower study (optional): kid-level answer + comment-building word
+  // bank + multiple-choice options. Pictures are assigned after saving.
+  simplifiedAnswer?: string;
+  keyWords?: string[];
   options: string[];
 }
 
@@ -69,6 +73,8 @@ export default function ContentIngestion() {
         (data.questions || []).map((q: string) => ({
           question: q,
           answer: "",
+          simplifiedAnswer: "",
+          keyWords: [],
           options: [],
         }))
       );
@@ -422,52 +428,113 @@ export default function ContentIngestion() {
           Questions
         </h3>
         <p className="text-xs text-zinc-400 mb-3">
-          {questions.length} questions — used for Trivia
+          {source === "WATCHTOWER"
+            ? `${questions.length} questions — power the Meeting → Watchtower Study. Enter answers by hand; auto-parsing is unreliable.`
+            : `${questions.length} questions — used for Trivia`}
         </p>
         <div className="space-y-3 mb-3">
-          {questions.map((q, i) => (
-            <div
-              key={i}
-              className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800 space-y-2"
-            >
-              <div className="flex gap-2">
-                <input
-                  value={q.question}
-                  onChange={(e) => {
-                    const updated = [...questions];
-                    updated[i] = { ...updated[i], question: e.target.value };
-                    setQuestions(updated);
-                  }}
-                  className="flex-1 px-2 py-1 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm"
-                  placeholder="Question"
-                />
-                <button
-                  onClick={() =>
-                    setQuestions(questions.filter((_, idx) => idx !== i))
+          {questions.map((q, i) => {
+            const patch = (p: Partial<QuestionEntry>) => {
+              const updated = [...questions];
+              updated[i] = { ...updated[i], ...p };
+              setQuestions(updated);
+            };
+            return (
+              <div
+                key={i}
+                className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800 space-y-2"
+              >
+                <div className="flex gap-2">
+                  <textarea
+                    value={q.question}
+                    onChange={(e) => patch({ question: e.target.value })}
+                    rows={source === "WATCHTOWER" ? 2 : 1}
+                    className="flex-1 px-2 py-1 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm"
+                    placeholder="Question"
+                  />
+                  <button
+                    onClick={() =>
+                      setQuestions(questions.filter((_, idx) => idx !== i))
+                    }
+                    className="text-red-400 hover:text-red-600 text-sm px-1 self-start"
+                  >
+                    x
+                  </button>
+                </div>
+                <textarea
+                  value={q.answer}
+                  onChange={(e) => patch({ answer: e.target.value })}
+                  rows={source === "WATCHTOWER" ? 2 : 1}
+                  className="w-full px-2 py-1 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm"
+                  placeholder={
+                    source === "WATCHTOWER"
+                      ? "Paragraph answer (leave blank for a personal/discussion question)"
+                      : "Answer"
                   }
-                  className="text-red-400 hover:text-red-600 text-sm px-1"
-                >
-                  x
-                </button>
+                />
+                {source === "WATCHTOWER" && (
+                  <>
+                    <textarea
+                      value={q.simplifiedAnswer ?? ""}
+                      onChange={(e) =>
+                        patch({ simplifiedAnswer: e.target.value })
+                      }
+                      rows={2}
+                      className="w-full px-2 py-1 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm"
+                      placeholder="Simplified answer for Little Ones (blank = hidden from Little Ones)"
+                    />
+                    <input
+                      value={(q.keyWords ?? []).join(", ")}
+                      onChange={(e) =>
+                        patch({
+                          keyWords: e.target.value
+                            .split(",")
+                            .map((w) => w.trim())
+                            .filter(Boolean),
+                        })
+                      }
+                      className="w-full px-2 py-1 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm"
+                      placeholder="Key words, comma-separated (optional — auto-filled from the answer if blank)"
+                    />
+                    <textarea
+                      value={(q.options ?? []).join("\n")}
+                      onChange={(e) =>
+                        patch({
+                          options: e.target.value
+                            .split("\n")
+                            .map((o) => o.trim())
+                            .filter(Boolean),
+                        })
+                      }
+                      rows={3}
+                      className="w-full px-2 py-1 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm"
+                      placeholder="Multiple-choice options, one per line (optional — auto-built if blank)"
+                    />
+                  </>
+                )}
               </div>
-              <input
-                value={q.answer}
-                onChange={(e) => {
-                  const updated = [...questions];
-                  updated[i] = { ...updated[i], answer: e.target.value };
-                  setQuestions(updated);
-                }}
-                className="w-full px-2 py-1 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm"
-                placeholder="Answer"
-              />
-            </div>
-          ))}
+            );
+          })}
         </div>
+        {source === "WATCHTOWER" && (
+          <p className="text-xs text-zinc-400 mb-3">
+            Little Ones pictures are assigned per question after saving: use
+            the <span className="font-medium">Images</span> button on the pack,
+            then pick a picture for each question in{" "}
+            <span className="font-medium">Edit</span>.
+          </p>
+        )}
         <button
           onClick={() =>
             setQuestions([
               ...questions,
-              { question: "", answer: "", options: [] },
+              {
+                question: "",
+                answer: "",
+                simplifiedAnswer: "",
+                keyWords: [],
+                options: [],
+              },
             ])
           }
           className="text-sm text-coral-600 hover:text-coral-700"

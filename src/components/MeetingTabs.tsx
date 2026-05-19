@@ -3,6 +3,19 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import GameCardGrid, { type GameCard } from "@/components/GameCardGrid";
+import WatchtowerStudyPanel, {
+  type StudyQuestion,
+  type SavedStudyResponse,
+} from "@/components/WatchtowerStudyPanel";
+
+interface StudyData {
+  ageGroup: string;
+  packId: string;
+  title: string;
+  imageUrl: string | null;
+  questions: StudyQuestion[];
+  savedResponses: Record<number, SavedStudyResponse>;
+}
 
 const TABS = [
   { key: "prep", label: "This Week" },
@@ -21,11 +34,13 @@ export default function MeetingTabs({
   live,
   weekOffset,
   weekLabel,
+  study,
 }: {
   prep: GameCard[];
   live: GameCard[];
   weekOffset: number;
   weekLabel: string;
+  study?: StudyData | null;
 }) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabKey>("prep");
@@ -91,6 +106,20 @@ export default function MeetingTabs({
           </button>
         )}
       </div>
+
+      {/* Watchtower study — same pack/answers in both tabs, so Meeting Live
+          resumes whatever was prepared this week. */}
+      {study && (
+        <WatchtowerStudyPanel
+          ageGroup={study.ageGroup}
+          packId={study.packId}
+          title={study.title}
+          imageUrl={study.imageUrl}
+          questions={study.questions}
+          savedResponses={study.savedResponses}
+          live={activeTab === "live"}
+        />
+      )}
 
       {/* Body */}
       {cards.length === 0 ? (
