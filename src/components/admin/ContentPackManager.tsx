@@ -12,6 +12,12 @@ interface ScriptureEntry {
 interface QuestionEntry {
   question: string;
   answer: string;
+  // Watchtower study (optional): kid-level answer, comment-building word
+  // bank, multiple-choice options, and a per-question Little Ones picture.
+  // Older packs may omit these.
+  simplifiedAnswer?: string;
+  keyWords?: string[];
+  imageUrl?: string;
   options: string[];
 }
 
@@ -30,6 +36,9 @@ interface ContentPack {
   simplifiedComment?: string | null;
   createdAt: string;
   meetingWeek?: { id: string; weekOf: string; title: string } | null;
+  // Pictures linked to this pack (via the Images button). Loaded when the
+  // single pack is fetched for editing; powers the per-question picker.
+  images?: { id: string; path: string; altText: string; filename: string }[];
   _count?: { instances: number };
 }
 
@@ -122,12 +131,24 @@ export default function ContentPackManager() {
 
   /* ── Start editing ───────────────────────────────────────────────── */
 
-  const startEdit = (id: string) => {
+  const startEdit = async (id: string) => {
+    setError("");
+    // Fetch the single pack so we get its linked images (the list payload
+    // omits them) for the per-question Little Ones picture picker.
+    try {
+      const res = await fetch(`/api/admin/content-packs/${id}`);
+      if (res.ok) {
+        setEditData((await res.json()) as ContentPack);
+        setEditingId(id);
+        return;
+      }
+    } catch {
+      // fall back to the list copy below
+    }
     const pack = packs.find((p) => p.id === id);
     if (pack) {
       setEditData({ ...pack });
       setEditingId(id);
-      setError("");
     }
   };
 
@@ -601,6 +622,10 @@ function ContentPackEditor({
     });
   };
 
+  // Watchtower study packs get the full manual Q&A editor (paragraph answer,
+  // simplified answer, comment-building key words, multiple-choice options).
+  const isWatchtower = data.source === "WATCHTOWER";
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -800,49 +825,134 @@ function ContentPackEditor({
           Questions
         </h3>
         <p className="text-xs text-zinc-400 mb-3">
-          {data.questions.length} questions — used for Trivia
+          {isWatchtower
+            ? `${data.questions.length} questions — power the Meeting → Watchtower Study experience. Auto-parsing is unreliable, so enter these by hand.`
+            : `${data.questions.length} questions — used for Trivia`}
         </p>
         <div className="space-y-3 mb-3">
-          {data.questions.map((q, i) => (
-            <div
-              key={i}
-              className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800 space-y-2"
-            >
-              <div className="flex gap-2">
-                <input
-                  value={q.question}
-                  onChange={(e) => {
-                    const updated = [...data.questions];
-                    updated[i] = { ...updated[i], question: e.target.value };
-                    onChange({ ...data, questions: updated });
-                  }}
-                  className="flex-1 px-2 py-1 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm text-zinc-900 dark:text-zinc-100"
-                  placeholder="Question"
-                />
-                <button
-                  onClick={() =>
-                    onChange({
-                      ...data,
-                      questions: data.questions.filter((_, idx) => idx !== i),
-                    })
+          {data.questions.map((q, i) => {
+            const patch = (p: Partial<QuestionEntry>) => {
+              const updated = [...data.questions];
+              updated[i] = { ...updated[i], ...p };
+              onChange({ ...data, questions: updated });
+            };
+            return (
+              <div
+                key={i}
+                className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800 space-y-2"
+              >
+                <div className="flex gap-2">
+                  <textarea
+                    value={q.question}
+                    onChange={(e) => patch({ question: e.target.value })}
+                    rows={isWatchtower ? 2 : 1}
+                    className="flex-1 px-2 py-1 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm text-zinc-900 dark:text-zinc-100"
+                    placeholder="Question"
+                  />
+                  <button
+                    onClick={() =>
+                      onChange({
+                        ...data,
+                        questions: data.questions.filter(
+                          (_, idx) => idx !== i,
+                        ),
+                      })
+                    }
+                    className="text-red-400 hover:text-red-600 text-sm px-1 self-start"
+                  >
+                    x
+                  </button>
+                </div>
+                <textarea
+                  value={q.answer}
+                  onChange={(e) => patch({ answer: e.target.value })}
+                  rows={isWatchtower ? 2 : 1}
+                  className="w-full px-2 py-1 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm text-zinc-900 dark:text-zinc-100"
+                  placeholder={
+                    isWatchtower
+                      ? "Paragraph answer (shown on “Reveal”)"
+                      : "Answer"
                   }
-                  className="text-red-400 hover:text-red-600 text-sm px-1"
-                >
-                  x
-                </button>
+                />
+                {isWatchtower && (
+                  <>
+                    <textarea
+                      value={q.simplifiedAnswer ?? ""}
+                      onChange={(e) =>
+                        patch({ simplifiedAnswer: e.target.value })
+                      }
+                      rows={2}
+                      className="w-full px-2 py-1 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm text-zinc-900 dark:text-zinc-100"
+                      placeholder="Simplified answer for Little Ones (optional — falls back to the paragraph answer)"
+                    />
+                    <input
+                      value={(q.keyWords ?? []).join(", ")}
+                      onChange={(e) =>
+                        patch({
+                          keyWords: e.target.value
+                            .split(",")
+                            .map((w) => w.trim())
+                            .filter(Boolean),
+                        })
+                      }
+                      className="w-full px-2 py-1 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm text-zinc-900 dark:text-zinc-100"
+                      placeholder="Key words, comma-separated (optional — auto-filled from the answer if blank)"
+                    />
+                    <textarea
+                      value={(q.options ?? []).join("\n")}
+                      onChange={(e) =>
+                        patch({
+                          options: e.target.value
+                            .split("\n")
+                            .map((o) => o.trim())
+                            .filter(Boolean),
+                        })
+                      }
+                      rows={3}
+                      className="w-full px-2 py-1 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm text-zinc-900 dark:text-zinc-100"
+                      placeholder="Multiple-choice options, one per line (optional — auto-built from other answers if blank)"
+                    />
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={q.imageUrl ?? ""}
+                        onChange={(e) => patch({ imageUrl: e.target.value })}
+                        className="flex-1 px-2 py-1 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm text-zinc-900 dark:text-zinc-100"
+                      >
+                        <option value="">
+                          Little Ones picture: none (use the pack&apos;s shared
+                          picture)
+                        </option>
+                        {(data.images ?? []).map((img) => (
+                          <option key={img.id} value={img.path}>
+                            {img.altText || img.filename}
+                          </option>
+                        ))}
+                      </select>
+                      {q.imageUrl && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={
+                            q.imageUrl.startsWith("/")
+                              ? q.imageUrl
+                              : `/${q.imageUrl}`
+                          }
+                          alt=""
+                          className="h-10 w-10 object-cover rounded border border-zinc-200 dark:border-zinc-700"
+                        />
+                      )}
+                    </div>
+                    {(data.images ?? []).length === 0 && (
+                      <p className="text-xs text-zinc-400">
+                        No pictures linked yet — add them with the{" "}
+                        <span className="font-medium">Images</span> button on
+                        the pack list, then pick one per question here.
+                      </p>
+                    )}
+                  </>
+                )}
               </div>
-              <input
-                value={q.answer}
-                onChange={(e) => {
-                  const updated = [...data.questions];
-                  updated[i] = { ...updated[i], answer: e.target.value };
-                  onChange({ ...data, questions: updated });
-                }}
-                className="w-full px-2 py-1 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm text-zinc-900 dark:text-zinc-100"
-                placeholder="Answer"
-              />
-            </div>
-          ))}
+            );
+          })}
         </div>
         <button
           onClick={() =>
@@ -850,7 +960,14 @@ function ContentPackEditor({
               ...data,
               questions: [
                 ...data.questions,
-                { question: "", answer: "", options: [] },
+                {
+                  question: "",
+                  answer: "",
+                  simplifiedAnswer: "",
+                  keyWords: [],
+                  options: [],
+                  imageUrl: "",
+                },
               ],
             })
           }

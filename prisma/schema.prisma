@@ -304,6 +304,10 @@ model DailyResponse {
   questionIndex Int
   question      String   // snapshot of the question text at answer time
   response      String
+  // Optional structured prep state (Watchtower study): the Youth's built or
+  // multiple-choice answer, so it carries from meeting prep into Meeting Live.
+  // { mode?: "build" | "mc", builtAnswer?: string }
+  data          Json?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

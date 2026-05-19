@@ -8,12 +8,23 @@ const schema = z.object({
   questionIndex: z.number().int().min(0),
   question: z.string().min(1).max(500),
   response: z.string().max(4000),
+  // Watchtower study prep state (optional): the Youth's built or
+  // multiple-choice answer, carried from meeting prep into Meeting Live.
+  data: z
+    .object({
+      mode: z.enum(["build", "mc"]).optional(),
+      builtAnswer: z.string().max(2000).optional(),
+    })
+    .strict()
+    .optional(),
 });
 
 /**
  * POST /api/daily/response
- * Upserts the signed-in user's written answer to one daily-text question.
- * Empty response deletes the row (so a cleared box doesn't linger).
+ * Upserts the signed-in user's answer to one question (daily text or
+ * Watchtower study). The free-text note lives in `response`; an optional
+ * built/selected answer lives in `data`. The row is removed only when both
+ * are empty, so a cleared note doesn't wipe a prepared answer (and vice versa).
  */
 export async function POST(req: Request) {
   const session = await auth();
@@ -25,7 +36,8 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid input" }, { status: 400 });
   }
-  const { contentPackId, questionIndex, question, response } = parsed.data;
+  const { contentPackId, questionIndex, question, response, data } =
+    parsed.data;
   const userId = session.user.id;
   const key = {
     userId_contentPackId_questionIndex: {
@@ -35,7 +47,11 @@ export async function POST(req: Request) {
     },
   };
 
-  if (!response.trim()) {
+  const payloadData =
+    data && (data.mode || data.builtAnswer?.trim()) ? data : undefined;
+  const hasData = payloadData !== undefined;
+
+  if (!response.trim() && !hasData) {
     await prisma.dailyResponse
       .delete({ where: key })
       .catch(() => {}); // nothing saved yet — fine
@@ -44,8 +60,19 @@ export async function POST(req: Request) {
 
   await prisma.dailyResponse.upsert({
     where: key,
-    create: { userId, contentPackId, questionIndex, question, response },
-    update: { question, response },
+    create: {
+      userId,
+      contentPackId,
+      questionIndex,
+      question,
+      response,
+      ...(payloadData !== undefined ? { data: payloadData } : {}),
+    },
+    update: {
+      question,
+      response,
+      ...(payloadData !== undefined ? { data: payloadData } : {}),
+    },
   });
 
   return NextResponse.json({ success: true });
