@@ -150,6 +150,16 @@ export default function ContentIngestion() {
     }
   };
 
+  // Reorder helper for the per-question Up/Down buttons. Order matters
+  // for the Watchtower study flow and during the meeting.
+  const moveQuestion = (from: number, to: number) => {
+    if (to < 0 || to >= questions.length) return;
+    const next = [...questions];
+    const [item] = next.splice(from, 1);
+    next.splice(to, 0, item);
+    setQuestions(next);
+  };
+
   // ─── Step: Paste ───────────────────────────────────────────────────
 
   if (step === "paste") {
@@ -452,14 +462,39 @@ export default function ContentIngestion() {
                     className="flex-1 px-2 py-1 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm"
                     placeholder="Question"
                   />
-                  <button
-                    onClick={() =>
-                      setQuestions(questions.filter((_, idx) => idx !== i))
-                    }
-                    className="text-red-400 hover:text-red-600 text-sm px-1 self-start"
-                  >
-                    x
-                  </button>
+                  <div className="flex flex-col gap-0.5 self-start">
+                    <button
+                      type="button"
+                      onClick={() => moveQuestion(i, i - 1)}
+                      disabled={i === 0}
+                      aria-label="Move question up"
+                      title="Move up"
+                      className="w-7 h-7 flex items-center justify-center text-sm rounded text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-700 dark:hover:text-zinc-100 disabled:text-zinc-300 dark:disabled:text-zinc-700 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveQuestion(i, i + 1)}
+                      disabled={i === questions.length - 1}
+                      aria-label="Move question down"
+                      title="Move down"
+                      className="w-7 h-7 flex items-center justify-center text-sm rounded text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-700 dark:hover:text-zinc-100 disabled:text-zinc-300 dark:disabled:text-zinc-700 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                    >
+                      ↓
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setQuestions(questions.filter((_, idx) => idx !== i))
+                      }
+                      aria-label="Delete question"
+                      title="Delete"
+                      className="w-7 h-7 flex items-center justify-center text-sm rounded text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                    >
+                      ×
+                    </button>
+                  </div>
                 </div>
                 <textarea
                   value={q.answer}
