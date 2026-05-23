@@ -101,7 +101,11 @@ export async function POST(req: Request) {
         instancesToCreate.push({
           gameId: game.id,
           contentPackId: contentPack.id,
-          context: data.context,
+          // Listening games belong to the live meeting regardless of the
+          // pack's own context — the pack itself can be prep/live/either.
+          context: ALWAYS_LIVE_GAMES.has(game.slug)
+            ? "MEETING_LIVE"
+            : data.context,
           title: `${game.title} — ${data.title}`,
         });
       }
@@ -114,6 +118,17 @@ export async function POST(req: Request) {
 
   return NextResponse.json(contentPack, { status: 201 });
 }
+
+/**
+ * Listening / participation games that only make sense during the live
+ * meeting. Their instances are forced to MEETING_LIVE on creation, even
+ * if the pack itself was filed as MEETING_PREP.
+ */
+const ALWAYS_LIVE_GAMES = new Set([
+  "quiet-listeners",
+  "meeting-bingo",
+  "tap-when-you-hear",
+]);
 
 /**
  * Check if a game engine can use this content pack based on available data.
