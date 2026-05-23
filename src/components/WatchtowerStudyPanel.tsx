@@ -64,6 +64,21 @@ function shuffle<T>(a: T[]): T[] {
   return r;
 }
 
+/**
+ * Splits a leading Watchtower paragraph marker — "1.", "1, 2.", "1-2.",
+ * "1–2." — off the question text. We render the marker separately as a
+ * "¶1–2" badge so the list index ("1.") doesn't collide with it and
+ * produce "1. 1-2. …" double numbering.
+ */
+const LEADING_PARAGRAPH = /^\s*(\d+(?:\s*[,\-–—]\s*\d+)*)\.\s*/;
+function splitParagraph(q: string): { paragraph: string | null; text: string } {
+  const m = q.match(LEADING_PARAGRAPH);
+  if (!m) return { paragraph: null, text: q };
+  // Normalise "1, 2" / "1 - 2" → "1, 2" / "1–2" with a real en-dash.
+  const para = m[1].replace(/\s*[\-–—]\s*/, "–").replace(/\s*,\s*/, ", ");
+  return { paragraph: para, text: q.slice(m[0].length).trim() };
+}
+
 /** Per-question picture, falling back to the pack's shared picture. */
 function imgSrc(
   raw: string | null | undefined,
@@ -289,9 +304,21 @@ function LittlesStudy({
           <span className="text-xs font-semibold text-sky-600 dark:text-sky-300 mb-2">
             Let&apos;s find out
           </span>
-          <span className="text-lg font-extrabold leading-tight text-zinc-800 dark:text-zinc-100">
-            {q.question}
-          </span>
+          {(() => {
+            const { paragraph, text } = splitParagraph(q.question);
+            return (
+              <>
+                {paragraph && (
+                  <span className="mb-2 px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-violet-200 dark:bg-violet-900/40 text-violet-700 dark:text-violet-200">
+                    Paragraph {paragraph}
+                  </span>
+                )}
+                <span className="text-lg font-extrabold leading-tight text-zinc-800 dark:text-zinc-100">
+                  {text}
+                </span>
+              </>
+            );
+          })()}
         </div>
 
         {/* 2 — picture: B&W → colour */}
@@ -464,10 +491,18 @@ function YouthQuestion({
   const backspace = () =>
     setBuilt((b) => b.split(" ").slice(0, -1).join(" "));
 
+  const { paragraph, text } = splitParagraph(q.question);
+
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-5">
       <p className="font-semibold text-zinc-900 dark:text-zinc-50 mb-3">
-        {index + 1}. {q.question}
+        <span className="text-zinc-400 mr-1">{index + 1}.</span>
+        {paragraph && (
+          <span className="inline-block mr-2 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 align-middle">
+            ¶{paragraph}
+          </span>
+        )}
+        {text}
       </p>
 
       {!live && !isReflection && (
@@ -644,11 +679,19 @@ function AdultQuestion({
     setStatus(ok ? "saved" : "error");
   };
 
+  const { paragraph, text } = splitParagraph(q.question);
+
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-5">
       <div className="flex items-start justify-between gap-3">
         <p className="font-semibold text-zinc-900 dark:text-zinc-50">
-          {index + 1}. {q.question}
+          <span className="text-zinc-400 mr-1">{index + 1}.</span>
+          {paragraph && (
+            <span className="inline-block mr-2 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 align-middle">
+              ¶{paragraph}
+            </span>
+          )}
+          {text}
         </p>
         {!live && hasAnswer && (
           <button
