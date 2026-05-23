@@ -58,6 +58,7 @@ export default async function MeetingPage({
     title: inst.title,
     description: inst.game.description,
     imageUrl: resolveCardImage(inst.game.cardImages, userAgeGroup),
+    source: inst.contentPack.source,
   });
 
   const prep = prepInstances.map(toCard);
