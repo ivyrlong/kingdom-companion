@@ -135,8 +135,12 @@ export default function ContentPackManager() {
     setError("");
     // Fetch the single pack so we get its linked images (the list payload
     // omits them) for the per-question Little Ones picture picker.
+    // cache: "no-store" guarantees a fresh read every time — important so
+    // images uploaded from /admin/images in another tab show up immediately.
     try {
-      const res = await fetch(`/api/admin/content-packs/${id}`);
+      const res = await fetch(`/api/admin/content-packs/${id}`, {
+        cache: "no-store",
+      });
       if (res.ok) {
         setEditData((await res.json()) as ContentPack);
         setEditingId(id);
@@ -151,6 +155,38 @@ export default function ContentPackManager() {
       setEditingId(id);
     }
   };
+
+  /**
+   * Re-fetch just the linked images for the pack currently being edited.
+   * Used by:
+   *   - the "Refresh" link beside the per-question picture picker, so the
+   *     admin can manually pull in images uploaded elsewhere without
+   *     losing the changes they've already typed
+   *   - a visibilitychange listener that fires when this tab regains focus,
+   *     which handles the "uploaded in another tab" case automatically
+   */
+  const refreshEditImages = useCallback(async () => {
+    if (!editingId) return;
+    try {
+      const res = await fetch(`/api/admin/content-packs/${editingId}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const fresh = (await res.json()) as ContentPack;
+      setEditData((prev) => (prev ? { ...prev, images: fresh.images } : prev));
+    } catch {
+      // best-effort — leave the existing list alone on failure
+    }
+  }, [editingId]);
+
+  useEffect(() => {
+    if (!editingId) return;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void refreshEditImages();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [editingId, refreshEditImages]);
 
   /* ── Save edits ──────────────────────────────────────────────────── */
 
@@ -212,6 +248,7 @@ export default function ContentPackManager() {
           setEditingId(null);
           setEditData(null);
         }}
+        onRefreshImages={refreshEditImages}
         saving={saving}
         error={error}
       />
@@ -598,6 +635,7 @@ function PackImagesModal({
 function ContentPackEditor({
   data,
   onChange,
+  onRefreshImages,
   onSave,
   onCancel,
   saving,
@@ -605,6 +643,7 @@ function ContentPackEditor({
 }: {
   data: ContentPack;
   onChange: (d: ContentPack) => void;
+  onRefreshImages: () => Promise<void>;
   onSave: () => void;
   onCancel: () => void;
   saving: boolean;
@@ -976,11 +1015,31 @@ function ContentPackEditor({
                         />
                       )}
                     </div>
-                    {(data.images ?? []).length === 0 && (
+                    {/* Only render the refresh link on the first question to
+                        avoid 18 repeats; it refreshes the list for every
+                        picker since they all share data.images. */}
+                    {i === 0 && (
                       <p className="text-xs text-zinc-400">
-                        No pictures linked yet — add them with the{" "}
+                        {(data.images ?? []).length} picture(s) available.{" "}
+                        <button
+                          type="button"
+                          onClick={() => void onRefreshImages()}
+                          className="text-coral-600 dark:text-coral-400 hover:underline"
+                        >
+                          Refresh
+                        </button>{" "}
+                        if you just uploaded more.
+                      </p>
+                    )}
+                    {(data.images ?? []).length === 0 && i === 0 && (
+                      <p className="text-xs text-zinc-400">
+                        No pictures linked yet — upload via{" "}
+                        <span className="font-medium">
+                          /admin/images
+                        </span>{" "}
+                        (link to this pack), or use the{" "}
                         <span className="font-medium">Images</span> button on
-                        the pack list, then pick one per question here.
+                        the pack list, then click Refresh above.
                       </p>
                     )}
                   </>
