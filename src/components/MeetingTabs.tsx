@@ -14,6 +14,7 @@ interface StudyData {
   title: string;
   imageUrl: string | null;
   questions: StudyQuestion[];
+  scriptures: Array<{ reference: string; text: string }>;
   savedResponses: Record<number, SavedStudyResponse>;
 }
 
@@ -164,6 +165,7 @@ export default function MeetingTabs({
           title={study.title}
           imageUrl={study.imageUrl}
           questions={study.questions}
+          scriptures={study.scriptures}
           savedResponses={study.savedResponses}
           live={activeTab === "live"}
         />

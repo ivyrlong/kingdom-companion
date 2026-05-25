@@ -82,6 +82,7 @@ export default async function MeetingPage({
     title: string;
     imageUrl: string | null;
     questions: StudyQuestion[];
+    scriptures: Array<{ reference: string; text: string }>;
     savedResponses: Record<number, SavedStudyResponse>;
   } | null = null;
 
@@ -112,6 +113,12 @@ export default async function MeetingPage({
       imageUrl,
       questions: Array.isArray(watchtowerPack.questions)
         ? (watchtowerPack.questions as unknown as StudyQuestion[])
+        : [],
+      scriptures: Array.isArray(watchtowerPack.scriptures)
+        ? (watchtowerPack.scriptures as unknown as Array<{
+            reference: string;
+            text: string;
+          }>)
         : [],
       savedResponses,
     };
