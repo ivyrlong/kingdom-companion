@@ -16,6 +16,8 @@ interface StudyData {
   questions: StudyQuestion[];
   scriptures: Array<{ reference: string; text: string }>;
   savedResponses: Record<number, SavedStudyResponse>;
+  attribution: string | null;
+  sourceUrl: string | null;
 }
 
 const TABS = [
@@ -167,6 +169,8 @@ export default function MeetingTabs({
           questions={study.questions}
           scriptures={study.scriptures}
           savedResponses={study.savedResponses}
+          attribution={study.attribution}
+          sourceUrl={study.sourceUrl}
           live={activeTab === "live"}
         />
       )}

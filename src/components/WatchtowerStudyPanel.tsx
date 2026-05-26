@@ -11,6 +11,16 @@ import Confetti from "@/components/Confetti";
 
 /* ── Types ─────────────────────────────────────────────────────────── */
 
+export interface StudyReference {
+  type: "scripture" | "publication" | "crossArticle" | "footnote" | "internal";
+  /** What to print on the chip (e.g. "Insight, vol. 1, p. 1240"). */
+  label: string;
+  /** WOL link — chips always open this in a new tab. */
+  url?: string;
+  /** When type === "scripture", the parsed citation like "2 Kings 5:13, 14". */
+  scriptureRef?: string;
+}
+
 export interface StudyQuestion {
   question: string;
   /** Paragraph answer. Blank = a personal/discussion question. */
@@ -23,6 +33,10 @@ export interface StudyQuestion {
   options?: string[];
   /** Per-question picture for the Little Ones reveal (falls back to pack). */
   imageUrl?: string;
+  /** Section subheading that precedes this question (from WOL import). */
+  subheading?: string;
+  /** Outgoing reference links found in the paragraph (from WOL import). */
+  references?: StudyReference[];
 }
 
 export interface SavedStudyResponse {
@@ -45,6 +59,11 @@ export interface WatchtowerStudyPanelProps {
   savedResponses: Record<number, SavedStudyResponse>;
   /** When true the panel is shown in the live-meeting tab. */
   live?: boolean;
+  /** Pre-formatted attribution line for the pack, e.g.
+   *  "Based on 'Show Insight…', The Watchtower 2026 No. 4. © Watch Tower." */
+  attribution?: string | null;
+  /** Canonical wol.jw.org URL for the source article. */
+  sourceUrl?: string | null;
 }
 
 /* ── Helpers ───────────────────────────────────────────────────────── */
@@ -246,6 +265,110 @@ function ParagraphNav({
   );
 }
 
+/* ── Reference chips: per-question WOL outgoing links ──────────────── */
+
+/** Tailwind classes for each reference type — colour-coded so a reader
+ *  can tell at a glance whether a chip points to scripture, a publication,
+ *  another article in the same magazine, a footnote, or an in-page anchor. */
+const REFERENCE_CHIP_STYLES: Record<StudyReference["type"], string> = {
+  scripture:
+    "bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800 hover:bg-sky-200 dark:hover:bg-sky-900/50",
+  publication:
+    "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800 hover:bg-amber-200 dark:hover:bg-amber-900/50",
+  crossArticle:
+    "bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-800 hover:bg-violet-200 dark:hover:bg-violet-900/50",
+  footnote:
+    "bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700",
+  internal:
+    "bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700",
+};
+
+/** Row of small tappable chips for the question's WOL-imported references.
+ *  Each chip opens its WOL URL in a new tab — we never inline the resolved
+ *  content (copyright). `internal` chips intentionally skip the external-
+ *  link icon because they're anchors within the same article. */
+function ReferenceChips({ references }: { references?: StudyReference[] }) {
+  if (!references || references.length === 0) return null;
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-1.5">
+      <span className="text-[11px] font-medium text-zinc-400 mr-0.5">
+        See also:
+      </span>
+      {references.map((ref, i) => {
+        const styles = REFERENCE_CHIP_STYLES[ref.type];
+        const showExternalIcon =
+          ref.type !== "internal" && !!ref.url;
+        const inner = (
+          <>
+            {ref.label}
+            {showExternalIcon && (
+              <span aria-hidden="true" className="ml-1 opacity-70">
+                ↗
+              </span>
+            )}
+          </>
+        );
+        const className = `inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium border transition ${styles}`;
+        if (ref.url) {
+          return (
+            <a
+              key={`${ref.type}-${ref.label}-${i}`}
+              href={ref.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={className}
+              title={ref.label}
+            >
+              {inner}
+            </a>
+          );
+        }
+        return (
+          <span
+            key={`${ref.type}-${ref.label}-${i}`}
+            className={`${className} cursor-default`}
+            title={ref.label}
+          >
+            {ref.label}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── Attribution footer: pack-level source line ────────────────────── */
+
+/** Small muted footer below the study showing the source citation and a
+ *  link to the canonical WOL article. Renders nothing if both fields are
+ *  empty so packs without imported metadata don't get a stray line. */
+function AttributionFooter({
+  attribution,
+  sourceUrl,
+}: {
+  attribution?: string | null;
+  sourceUrl?: string | null;
+}) {
+  const hasAttribution = !!attribution?.trim();
+  const hasSourceUrl = !!sourceUrl?.trim();
+  if (!hasAttribution && !hasSourceUrl) return null;
+  return (
+    <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs italic text-zinc-400">
+      {hasAttribution && <span>{attribution}</span>}
+      {hasSourceUrl && (
+        <a
+          href={sourceUrl!}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="not-italic font-medium text-sky-500 dark:text-sky-400 hover:underline"
+        >
+          Read full article on WOL →
+        </a>
+      )}
+    </div>
+  );
+}
+
 /* ── Container ─────────────────────────────────────────────────────── */
 
 export default function WatchtowerStudyPanel(
@@ -308,11 +431,17 @@ export default function WatchtowerStudyPanel(
       </div>
 
       {isLittle ? (
-        <LittlesStudy
-          questions={questions}
-          imageUrl={props.imageUrl}
-          fire={fire}
-        />
+        <>
+          <LittlesStudy
+            questions={questions}
+            imageUrl={props.imageUrl}
+            fire={fire}
+          />
+          <AttributionFooter
+            attribution={props.attribution}
+            sourceUrl={props.sourceUrl}
+          />
+        </>
       ) : (
         <>
           <ParagraphNav
@@ -378,6 +507,11 @@ export default function WatchtowerStudyPanel(
               Next →
             </button>
           </div>
+
+          <AttributionFooter
+            attribution={props.attribution}
+            sourceUrl={props.sourceUrl}
+          />
         </>
       )}
     </section>
@@ -852,24 +986,27 @@ function YouthQuestion({
 
       {/* Meeting Live: read-only recap of whatever was prepared. */}
       {live ? (
-        <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 p-3">
-          <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1">
-            {note.trim()
-              ? "Your prepared answer"
-              : hasParagraphAnswer
-                ? "Paragraph answer"
-                : "Your prepared answer"}
-          </p>
-          {liveAnswer ? (
-            <p className="text-sm text-zinc-800 dark:text-zinc-100 whitespace-pre-wrap">
-              {liveAnswer}
+        <>
+          <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 p-3">
+            <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1">
+              {note.trim()
+                ? "Your prepared answer"
+                : hasParagraphAnswer
+                  ? "Paragraph answer"
+                  : "Your prepared answer"}
             </p>
-          ) : (
-            <p className="text-sm italic text-zinc-400">
-              No answer prepared this week.
-            </p>
-          )}
-        </div>
+            {liveAnswer ? (
+              <p className="text-sm text-zinc-800 dark:text-zinc-100 whitespace-pre-wrap">
+                {liveAnswer}
+              </p>
+            ) : (
+              <p className="text-sm italic text-zinc-400">
+                No answer prepared this week.
+              </p>
+            )}
+          </div>
+          <ReferenceChips references={q.references} />
+        </>
       ) : (
         <>
           {/* Mode toggle (non-reflection only) */}
@@ -979,6 +1116,8 @@ function YouthQuestion({
               )}
             </>
           )}
+
+          <ReferenceChips references={q.references} />
 
           <p className="h-4 mt-1 text-xs text-zinc-400">
             {status === "saving"
@@ -1160,20 +1299,23 @@ function AdultQuestion({
               ? "Paragraph answer"
               : "Your prepared answer";
           return (
-            <div className="mt-4 rounded-lg bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 p-3">
-              <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1">
-                {label}
-              </p>
-              {liveAnswer ? (
-                <p className="text-sm text-zinc-800 dark:text-zinc-100 leading-relaxed whitespace-pre-wrap">
-                  {liveAnswer}
+            <>
+              <div className="mt-4 rounded-lg bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 p-3">
+                <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1">
+                  {label}
                 </p>
-              ) : (
-                <p className="text-sm italic text-zinc-400">
-                  No answer prepared this week.
-                </p>
-              )}
-            </div>
+                {liveAnswer ? (
+                  <p className="text-sm text-zinc-800 dark:text-zinc-100 leading-relaxed whitespace-pre-wrap">
+                    {liveAnswer}
+                  </p>
+                ) : (
+                  <p className="text-sm italic text-zinc-400">
+                    No answer prepared this week.
+                  </p>
+                )}
+              </div>
+              <ReferenceChips references={q.references} />
+            </>
           );
         })()
       ) : (
@@ -1192,6 +1334,7 @@ function AdultQuestion({
             placeholder="Write your personal answer here…"
             className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-coral-500"
           />
+          <ReferenceChips references={q.references} />
           <p className="h-4 mt-1 text-xs text-zinc-400">
             {status === "saving"
               ? "Saving…"

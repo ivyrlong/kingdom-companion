@@ -84,6 +84,8 @@ export default async function MeetingPage({
     questions: StudyQuestion[];
     scriptures: Array<{ reference: string; text: string }>;
     savedResponses: Record<number, SavedStudyResponse>;
+    attribution: string | null;
+    sourceUrl: string | null;
   } | null = null;
 
   if (watchtowerPack) {
@@ -121,6 +123,8 @@ export default async function MeetingPage({
           }>)
         : [],
       savedResponses,
+      attribution: watchtowerPack.attribution ?? null,
+      sourceUrl: watchtowerPack.sourceUrl ?? null,
     };
   }
 
