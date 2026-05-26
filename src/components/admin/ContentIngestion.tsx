@@ -445,6 +445,7 @@ export default function ContentIngestion() {
             setStep("paste");
             setSourceText("");
             setTitle("");
+            setWeekOf("");
             setVocabulary([]);
             setScriptures([]);
             setKeyPeople([]);
@@ -458,6 +459,9 @@ export default function ContentIngestion() {
             setSourceDocId(undefined);
             setAttribution(undefined);
             setWolUrl("");
+            setImporting(false);
+            setError("");
+            setDailyMode("single");
           }}
           className="px-6 py-2.5 bg-coral-600 hover:bg-coral-700 text-white font-medium rounded-lg transition"
         >

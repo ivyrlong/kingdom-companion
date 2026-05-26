@@ -13,11 +13,7 @@
 import * as cheerio from "cheerio";
 import type { CheerioAPI } from "cheerio";
 import type { AnyNode, Element as DomElement } from "domhandler";
-import {
-  extractKeyPeople,
-  extractKeyPhrases,
-  extractVocabulary,
-} from "@/lib/content-parser";
+import { extractKeyPeople, extractVocabulary } from "@/lib/content-parser";
 
 const WOL_ORIGIN = "https://wol.jw.org";
 
@@ -65,8 +61,10 @@ export interface DraftPack {
   sourceUrl: string;
   /** WOL doc id. */
   sourceDocId: string;
-  /** e.g. "Based on 'Show Insight…', The Watchtower 2026 No. 4. © Watch Tower." */
-  attribution: string;
+  /** e.g. "Based on 'Show Insight…', The Watchtower 2026 No. 4. © Watch Tower."
+   *  Omitted when the importer can't resolve a real article title — a
+   *  malformed attribution is worse than none. */
+  attribution?: string;
   vocabulary: string[];
   /** text intentionally empty — admin pastes their own NWT text or leaves blank. */
   scriptures: Array<{ reference: string; text: "" }>;
@@ -75,19 +73,6 @@ export interface DraftPack {
   questions: DraftQuestion[];
   keyPhrases: string[];
 }
-
-// ─── Stopwords for keyWord derivation ─────────────────────────────────
-// Inlined to keep this lib independent of the "use client" panel module.
-
-const STOPWORDS = new Set([
-  "the", "and", "that", "with", "this", "from", "have", "will", "your",
-  "you", "are", "was", "for", "his", "her", "him", "they", "them", "their",
-  "what", "when", "which", "into", "unto", "shall", "not", "but", "all",
-  "who", "how", "why", "our", "out", "one", "also", "may", "can", "has",
-  "had", "were", "been", "does", "did", "then", "than", "upon", "over",
-  "such", "more", "most", "some", "any", "each", "every", "there", "would",
-  "could", "should", "about", "because",
-]);
 
 // ─── Input normalisation ──────────────────────────────────────────────
 
@@ -293,29 +278,6 @@ function paragraphText($: CheerioAPI, p: AnyNode): string {
   const $p = $(p).clone();
   $p.find("span.parNum, span.pageNum, .dc-screenReaderText").remove();
   return $p.text().replace(/\s+/g, " ").trim();
-}
-
-/**
- * Derive single significant words from a paragraph's body.
- *  - split on non-letter chars
- *  - drop stopwords + short (< 4 char) tokens
- *  - dedupe (case-insensitive, keeping first-seen casing)
- *  - cap at 12
- */
-function deriveKeyWords(bodyText: string): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const raw of bodyText.split(/[^A-Za-z'’-]+/)) {
-    const w = raw.trim();
-    if (w.length < 4) continue;
-    const lc = w.toLowerCase();
-    if (STOPWORDS.has(lc)) continue;
-    if (seen.has(lc)) continue;
-    seen.add(lc);
-    out.push(w);
-    if (out.length >= 12) break;
-  }
-  return out;
 }
 
 // ─── Header parsing ───────────────────────────────────────────────────
@@ -537,38 +499,55 @@ export async function importFromWolUrl(input: string): Promise<DraftPack> {
   const { fullBodyText, allScriptureRefs } = aggregateBody($);
 
   // Per-question shape.
+  //
+  // Copyright posture: we deliberately leave `keyWords` empty for
+  // imported questions. The study panel auto-derives the word-bank
+  // chips from the admin's own-words paragraph answer via the panel's
+  // `deriveKeyWords` helper, so we don't need to ship ordered/cased
+  // fragments of the source paragraph here.
   const questions: DraftQuestion[] = rawQuestions.map((rq) => ({
     question: rq.text,
     answer: "",
     simplifiedAnswer: "",
-    keyWords: deriveKeyWords(rq.bodyText),
+    keyWords: [],
     options: [],
     imageUrl: "",
     subheading: rq.subheading,
     references: dedupeReferences(rq.refs),
   }));
 
-  // Pack-level derived data.
-  const vocabFromBody = extractVocabulary(fullBodyText);
-  const keyWordUnion = new Set<string>(vocabFromBody);
-  for (const q of questions) for (const w of q.keyWords) keyWordUnion.add(w);
-  const vocabulary = [...keyWordUnion];
+  // Pack-level derived data — only single-word vocabulary matched
+  // against our finite THEOCRATIC_TERMS list (no verbatim prose
+  // tokens) and key-people matches against a finite character list.
+  // Sorted alphabetically so we never preserve source ordering.
+  const vocabulary = [...new Set(extractVocabulary(fullBodyText))].sort(
+    (a, b) => a.localeCompare(b),
+  );
+  const keyPeople = [...new Set(extractKeyPeople(fullBodyText))].sort(
+    (a, b) => a.localeCompare(b),
+  );
+  const themes = pickThemes(fullBodyText, 5).sort((a, b) => a.localeCompare(b));
 
-  const keyPeople = extractKeyPeople(fullBodyText);
-  const themes = pickThemes(fullBodyText, 5);
-  const keyPhrases = extractKeyPhrases(fullBodyText);
+  // keyPhrases would otherwise be verbatim quoted spans from the
+  // article. Skip — admins can curate Meeting Bingo phrases manually
+  // if they want them for this pack.
+  const keyPhrases: string[] = [];
+
   const scriptures = allScriptureRefs.map((reference) => ({
     reference,
     text: "" as const,
   }));
 
-  // Resolve title for attribution: prefer the article <h1>, fall back to
-  // the JSON `title` field.
-  const displayTitle = header.title || title || "Watchtower study article";
-  const issuePhrase = issueLabel
-    ? `, The Watchtower ${issueLabel}`
-    : ", The Watchtower";
-  const attribution = `Based on "${displayTitle}"${issuePhrase}. © Watch Tower.`;
+  // Resolve title for attribution: prefer the article <h1>, fall back
+  // to the JSON `title` field. Skip attribution entirely if we don't
+  // have a real title — a malformed "Based on 'Watchtower study
+  // article'" line is worse than no attribution.
+  const displayTitle = header.title || title || "";
+  const attribution = displayTitle
+    ? `Based on "${displayTitle}"${
+        issueLabel ? `, The Watchtower ${issueLabel}` : ", The Watchtower"
+      }. © Watch Tower.`
+    : undefined;
 
   return {
     title: displayTitle,

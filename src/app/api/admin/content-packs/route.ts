@@ -2,38 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
-
-// Per-question reference (link to another scripture, publication,
-// cross-article, footnote, or in-article anchor). Imported from WOL and
-// surfaced as a tappable chip on the study panel. Body text is never
-// stored here — only the citation/label and the WOL URL.
-const referenceSchema = z.object({
-  type: z.enum([
-    "scripture",
-    "publication",
-    "crossArticle",
-    "footnote",
-    "internal",
-  ]),
-  label: z.string(),
-  url: z.string().optional(),
-  scriptureRef: z.string().optional(),
-});
-
-const questionSchema = z.object({
-  question: z.string(),
-  answer: z.string().default(""),
-  // Watchtower study: kid-level answer + comment-building word bank +
-  // an optional per-question picture for the Little Ones reveal.
-  simplifiedAnswer: z.string().default(""),
-  keyWords: z.array(z.string()).default([]),
-  options: z.array(z.string()).default([]),
-  imageUrl: z.string().default(""),
-  // WOL import: section header that precedes this paragraph, plus
-  // outgoing links found in the paragraph body.
-  subheading: z.string().optional(),
-  references: z.array(referenceSchema).default([]),
-});
+import { questionSchema } from "./_schemas";
 
 const createSchema = z.object({
   title: z.string().min(1),
