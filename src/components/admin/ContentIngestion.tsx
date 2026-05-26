@@ -9,6 +9,13 @@ interface ScriptureEntry {
   text: string;
 }
 
+interface ReferenceEntry {
+  type: "scripture" | "publication" | "crossArticle" | "footnote" | "internal";
+  label: string;
+  url?: string;
+  scriptureRef?: string;
+}
+
 interface QuestionEntry {
   question: string;
   answer: string;
@@ -17,6 +24,9 @@ interface QuestionEntry {
   simplifiedAnswer?: string;
   keyWords?: string[];
   options: string[];
+  // WOL import (optional): section subheading + outgoing reference links.
+  subheading?: string;
+  references?: ReferenceEntry[];
 }
 
 type Step = "paste" | "review" | "done";
@@ -42,8 +52,86 @@ export default function ContentIngestion() {
   const [questions, setQuestions] = useState<QuestionEntry[]>([]);
   const [keyPhrases, setKeyPhrases] = useState<string[]>([]);
 
+  // WOL-imported metadata (only set when the pack came from a wol.jw.org
+  // article — passes through to /api/admin/content-packs at publish time).
+  const [issueLabel, setIssueLabel] = useState<string | undefined>(undefined);
+  const [articleNumber, setArticleNumber] = useState<number | undefined>(
+    undefined,
+  );
+  const [themeScripture, setThemeScripture] = useState<
+    { reference: string } | undefined
+  >(undefined);
+  const [sourceUrl, setSourceUrl] = useState<string | undefined>(undefined);
+  const [sourceDocId, setSourceDocId] = useState<string | undefined>(undefined);
+  const [attribution, setAttribution] = useState<string | undefined>(undefined);
+
+  // WOL URL importer state
+  const [wolUrl, setWolUrl] = useState("");
+  const [importing, setImporting] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  /**
+   * Import a Watchtower study article from a wol.jw.org URL. Calls the
+   * server-side importer (which discards body prose) and pre-fills every
+   * review field so the admin only needs to type their own-words paragraph
+   * answers + simplified-for-kids answers + verify the extracted data.
+   */
+  const handleWolImport = async () => {
+    if (!wolUrl.trim()) return;
+    setImporting(true);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/wol-import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: wolUrl.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Import failed");
+
+      // Top-level pack fields
+      setTitle(data.title ?? "");
+      setSource("WATCHTOWER");
+      setContext("MEETING_PREP");
+      setIssueLabel(data.issueLabel);
+      setArticleNumber(data.articleNumber);
+      setThemeScripture(data.themeScripture);
+      setSourceUrl(data.sourceUrl);
+      setSourceDocId(data.sourceDocId);
+      setAttribution(data.attribution);
+
+      // Derived / structural fields
+      setVocabulary(data.vocabulary ?? []);
+      setScriptures(data.scriptures ?? []);
+      setKeyPeople(data.keyPeople ?? []);
+      setThemes(data.themes ?? []);
+      setKeyPhrases(data.keyPhrases ?? []);
+      setQuestions(
+        (data.questions ?? []).map(
+          (q: {
+            question: string;
+            subheading?: string;
+            references?: ReferenceEntry[];
+          }) => ({
+            question: q.question,
+            answer: "",
+            simplifiedAnswer: "",
+            keyWords: [],
+            options: [],
+            subheading: q.subheading,
+            references: q.references ?? [],
+          }),
+        ),
+      );
+      setStep("review");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Import failed");
+    } finally {
+      setImporting(false);
+    }
+  };
 
   const handleParse = async () => {
     if (!sourceText.trim()) return;
@@ -124,6 +212,13 @@ export default function ContentIngestion() {
           keyPhrases,
           meetingWeekId,
           generateInstances: true,
+          // WOL metadata — only sent if this pack was URL-imported
+          ...(issueLabel ? { issueLabel } : {}),
+          ...(articleNumber !== undefined ? { articleNumber } : {}),
+          ...(themeScripture ? { themeScripture } : {}),
+          ...(sourceUrl ? { sourceUrl } : {}),
+          ...(sourceDocId ? { sourceDocId } : {}),
+          ...(attribution ? { attribution } : {}),
         }),
       });
 
@@ -254,9 +349,57 @@ export default function ContentIngestion() {
               </div>
             )}
 
+            {/* WOL URL importer — fastest path for Watchtower articles.
+                Body prose is never persisted; only structure, citations,
+                and derived data (vocab, people, themes, key phrases). */}
+            {source === "WATCHTOWER" && (
+              <div className="rounded-xl border border-violet-200 dark:border-violet-900/40 bg-violet-50 dark:bg-violet-900/10 p-4 space-y-2">
+                <label className="block text-sm font-medium text-violet-900 dark:text-violet-200">
+                  Import from WOL URL{" "}
+                  <span className="text-xs font-normal text-violet-700/70 dark:text-violet-300/70">
+                    (fastest — pulls title, scriptures, references, and
+                    extracted vocabulary in one shot)
+                  </span>
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    type="url"
+                    value={wolUrl}
+                    onChange={(e) => setWolUrl(e.target.value)}
+                    placeholder="https://wol.jw.org/wol/d/r1/lp-e/…"
+                    className="flex-1 min-w-[280px] px-3 py-2 rounded-lg border border-violet-300 dark:border-violet-800 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-violet-500 text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleWolImport}
+                    disabled={importing || !wolUrl.trim()}
+                    className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:bg-violet-300 dark:disabled:bg-violet-900 text-white text-sm font-medium transition"
+                  >
+                    {importing ? "Importing…" : "Import"}
+                  </button>
+                </div>
+                <p className="text-xs text-violet-700/80 dark:text-violet-300/70">
+                  Paste a canonical /wol/d/ URL. You&apos;ll still type
+                  your own-words answers + simplified-for-kids on the next
+                  step. Body prose stays at WOL — only metadata is stored.
+                </p>
+                {sourceUrl && (
+                  <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                    ✓ Imported from {sourceUrl}
+                  </p>
+                )}
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                Paste Article Text
+                Paste Article Text{" "}
+                {source === "WATCHTOWER" && (
+                  <span className="text-xs font-normal text-zinc-400">
+                    (optional fallback — use the URL importer above when
+                    possible)
+                  </span>
+                )}
               </label>
               <textarea
                 value={sourceText}
@@ -308,6 +451,13 @@ export default function ContentIngestion() {
             setThemes([]);
             setQuestions([]);
             setKeyPhrases([]);
+            setIssueLabel(undefined);
+            setArticleNumber(undefined);
+            setThemeScripture(undefined);
+            setSourceUrl(undefined);
+            setSourceDocId(undefined);
+            setAttribution(undefined);
+            setWolUrl("");
           }}
           className="px-6 py-2.5 bg-coral-600 hover:bg-coral-700 text-white font-medium rounded-lg transition"
         >
