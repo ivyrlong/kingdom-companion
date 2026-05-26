@@ -3,6 +3,38 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
 
+// Per-question reference (link to another scripture, publication,
+// cross-article, footnote, or in-article anchor). Imported from WOL and
+// surfaced as a tappable chip on the study panel. Body text is never
+// stored here — only the citation/label and the WOL URL.
+const referenceSchema = z.object({
+  type: z.enum([
+    "scripture",
+    "publication",
+    "crossArticle",
+    "footnote",
+    "internal",
+  ]),
+  label: z.string(),
+  url: z.string().optional(),
+  scriptureRef: z.string().optional(),
+});
+
+const questionSchema = z.object({
+  question: z.string(),
+  answer: z.string().default(""),
+  // Watchtower study: kid-level answer + comment-building word bank +
+  // an optional per-question picture for the Little Ones reveal.
+  simplifiedAnswer: z.string().default(""),
+  keyWords: z.array(z.string()).default([]),
+  options: z.array(z.string()).default([]),
+  imageUrl: z.string().default(""),
+  // WOL import: section header that precedes this paragraph, plus
+  // outgoing links found in the paragraph body.
+  subheading: z.string().optional(),
+  references: z.array(referenceSchema).default([]),
+});
+
 const createSchema = z.object({
   title: z.string().min(1),
   source: z.enum(["WATCHTOWER", "OCLM", "EVERGREEN", "DAILY_TEXT"]),
@@ -14,21 +46,17 @@ const createSchema = z.object({
   ),
   keyPeople: z.array(z.string()),
   themes: z.array(z.string()),
-  questions: z.array(
-    z.object({
-      question: z.string(),
-      answer: z.string().default(""),
-      // Watchtower study: kid-level answer + comment-building word bank +
-      // an optional per-question picture for the Little Ones reveal.
-      simplifiedAnswer: z.string().default(""),
-      keyWords: z.array(z.string()).default([]),
-      options: z.array(z.string()).default([]),
-      imageUrl: z.string().default(""),
-    })
-  ),
+  questions: z.array(questionSchema),
   keyPhrases: z.array(z.string()),
   meetingWeekId: z.string().optional(),
   generateInstances: z.boolean().default(true),
+  // WOL metadata
+  issueLabel: z.string().optional(),
+  articleNumber: z.number().int().optional(),
+  themeScripture: z.object({ reference: z.string() }).optional(),
+  sourceUrl: z.string().optional(),
+  sourceDocId: z.string().optional(),
+  attribution: z.string().optional(),
 });
 
 export async function GET(req: Request) {
@@ -87,6 +115,12 @@ export async function POST(req: Request) {
       questions: data.questions,
       keyPhrases: data.keyPhrases,
       meetingWeekId: data.meetingWeekId || null,
+      issueLabel: data.issueLabel,
+      articleNumber: data.articleNumber,
+      themeScripture: data.themeScripture,
+      sourceUrl: data.sourceUrl,
+      sourceDocId: data.sourceDocId,
+      attribution: data.attribution,
     },
   });
 
