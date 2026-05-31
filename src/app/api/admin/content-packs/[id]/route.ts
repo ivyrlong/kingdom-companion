@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
-import { questionSchema } from "../_schemas";
+import { questionSchema, oclmSectionSchema } from "../_schemas";
 
 const updateSchema = z.object({
   title: z.string().min(1).optional(),
@@ -29,6 +29,14 @@ const updateSchema = z.object({
   sourceUrl: z.string().nullable().optional(),
   sourceDocId: z.string().nullable().optional(),
   attribution: z.string().nullable().optional(),
+  // OCLM workbook metadata. JSON columns (bibleReadingRange,
+  // bibleReadingAssignment, songs, sections) are optional-only for
+  // the same reason as themeScripture.
+  publicationCode: z.string().nullable().optional(),
+  bibleReadingRange: z.object({ reference: z.string() }).optional(),
+  bibleReadingAssignment: z.object({ reference: z.string() }).optional(),
+  songs: z.array(z.number().int()).optional(),
+  sections: z.array(oclmSectionSchema).optional(),
 });
 
 async function authorize() {

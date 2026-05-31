@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
-import { questionSchema } from "./_schemas";
+import { questionSchema, oclmSectionSchema } from "./_schemas";
 
 const createSchema = z.object({
   title: z.string().min(1),
@@ -26,6 +26,12 @@ const createSchema = z.object({
   sourceUrl: z.string().optional(),
   sourceDocId: z.string().optional(),
   attribution: z.string().optional(),
+  // OCLM workbook metadata — set when source=OCLM. JSON columns; admin-only.
+  publicationCode: z.string().optional(),
+  bibleReadingRange: z.object({ reference: z.string() }).optional(),
+  bibleReadingAssignment: z.object({ reference: z.string() }).optional(),
+  songs: z.array(z.number().int()).optional(),
+  sections: z.array(oclmSectionSchema).optional(),
 });
 
 export async function GET(req: Request) {
@@ -90,16 +96,38 @@ export async function POST(req: Request) {
       sourceUrl: data.sourceUrl,
       sourceDocId: data.sourceDocId,
       attribution: data.attribution,
+      publicationCode: data.publicationCode,
+      bibleReadingRange: data.bibleReadingRange,
+      bibleReadingAssignment: data.bibleReadingAssignment,
+      songs: data.songs,
+      sections: data.sections,
     },
   });
 
-  // Auto-generate game instances for compatible game engines
+  // Auto-generate game instances for compatible game engines.
+  //
+  // For OCLM packs we synthesise a `keyPhrases` list from the imported
+  // workbook outline (part titles, scenario tags) so listening games
+  // (Meeting Bingo, Tap When You Hear) can auto-seed without admin
+  // curation. The synthesised list is only used for compatibility
+  // checking; the persisted pack still has whatever was sent in.
   if (generateInstances) {
     const games = await prisma.game.findMany({ where: { isActive: true } });
 
+    const seedingData = {
+      vocabulary: data.vocabulary,
+      scriptures: data.scriptures,
+      questions: data.questions,
+      keyPeople: data.keyPeople,
+      keyPhrases:
+        data.source === "OCLM"
+          ? derivedOclmKeyPhrases(data)
+          : data.keyPhrases,
+    };
+
     const instancesToCreate = [];
     for (const game of games) {
-      const compatible = isGameCompatible(game.slug, data);
+      const compatible = isGameCompatible(game.slug, seedingData);
       if (compatible) {
         instancesToCreate.push({
           gameId: game.id,
@@ -120,6 +148,29 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json(contentPack, { status: 201 });
+}
+
+/**
+ * Build "things you'll hear at this meeting" phrases from an OCLM pack:
+ * part titles + ministry scenario tags + existing keyPhrases (if any).
+ * These power Meeting Bingo cards and Tap-When-You-Hear without manual
+ * authoring. We intentionally do NOT pull from body prose — only the
+ * functional headings the chairman/conductor actually announces.
+ */
+function derivedOclmKeyPhrases(data: {
+  keyPhrases: string[];
+  sections?: Array<{
+    parts: Array<{ title: string; scenarioTag?: string }>;
+  }>;
+}): string[] {
+  const out = new Set<string>(data.keyPhrases);
+  for (const s of data.sections ?? []) {
+    for (const p of s.parts) {
+      if (p.title) out.add(p.title);
+      if (p.scenarioTag) out.add(p.scenarioTag);
+    }
+  }
+  return [...out];
 }
 
 /**
