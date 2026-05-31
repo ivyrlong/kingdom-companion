@@ -128,27 +128,87 @@ export function extractKeyPhrases(text: string): string[] {
   return [...new Set(phrases)];
 }
 
-// ─── Question Generation (simple pattern-based) ────────────────────────
+// ─── Question Generation (pattern-based, Watchtower-aware) ─────────────
 
 /**
- * Extracts existing questions from text (lines ending in ?)
+ * Matches a Watchtower paragraph-number marker at the start of a paragraph:
+ * "1.", "1, 2.", "4-6.", "7–9." (en/em-dash), followed by whitespace.
+ */
+const PARAGRAPH_MARKER = /^\s*\d+(?:\s*[,\-–—]\s*\d+)*\.\s+/;
+
+/**
+ * Splits a question block on sub-question markers like "(a)", "(b)", "(i)",
+ * keeping each marker as the prefix of its part. Used so "(a) ...? (b) ...?"
+ * becomes two separate questions instead of one combined string.
+ */
+function splitSubQuestions(text: string): string[] {
+  const re = /\((?:[a-h]|[ivx]+)\)/gi;
+  const positions: number[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) positions.push(m.index);
+  if (positions.length === 0) return [text];
+
+  const parts: string[] = [];
+  if (positions[0] > 0) {
+    const lead = text.slice(0, positions[0]).trim();
+    if (lead) parts.push(lead); // lead-in before "(a)" sometimes carries the stem
+  }
+  for (let i = 0; i < positions.length; i++) {
+    const start = positions[i];
+    const end = i + 1 < positions.length ? positions[i + 1] : text.length;
+    parts.push(text.slice(start, end).trim());
+  }
+  return parts;
+}
+
+/**
+ * Extracts paragraph questions from pasted Watchtower-style text.
+ *
+ * Two complementary passes, in source order:
+ *  1. Paragraph-aware: for each blank-line-separated paragraph that starts
+ *     with a paragraph-number marker, collapse line wraps and pull every
+ *     sentence ending in "?". Splits (a)/(b)/(c) sub-questions into separate
+ *     entries. Catches questions that wrap across lines (the most common
+ *     reason the old line-only parser missed them).
+ *  2. Line fallback for un-numbered text: any line ending in "?".
+ *
+ * Deduped case-insensitively. Min 8 chars (keeps trivial "Why?" out without
+ * dropping short genuine questions).
  */
 export function extractQuestions(text: string): string[] {
-  const lines = text.split(/\n/);
-  const questions: string[] = [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const push = (raw: string) => {
+    const t = raw.replace(/\s+/g, " ").trim();
+    if (t.length < 8 || t.length > 300) return;
+    const key = t.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(t);
+  };
 
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed.endsWith("?") && trimmed.length > 15 && trimmed.length < 200) {
-      // Remove leading numbers/bullets
-      const cleaned = trimmed.replace(/^[\d.)\-*•]+\s*/, "");
-      if (cleaned.length > 15) {
-        questions.push(cleaned);
+  for (const rawPara of text.split(/\n\s*\n/)) {
+    const para = rawPara.replace(/\s+/g, " ").trim();
+    if (!para) continue;
+
+    if (PARAGRAPH_MARKER.test(para)) {
+      // Numbered Watchtower-style paragraph question block.
+      const body = para.replace(PARAGRAPH_MARKER, "");
+      for (const part of splitSubQuestions(body)) {
+        const matches = part.match(/[^?]+\?/g) || [];
+        for (const sentence of matches) push(sentence);
+      }
+    } else {
+      // Un-numbered: any line ending in "?" counts.
+      for (const line of rawPara.split(/\n/)) {
+        const t = line.trim();
+        if (!t.endsWith("?")) continue;
+        push(t.replace(/^[\d.,)\-*•\s]+/, ""));
       }
     }
   }
 
-  return questions;
+  return out;
 }
 
 // ─── Full Parse ────────────────────────────────────────────────────────

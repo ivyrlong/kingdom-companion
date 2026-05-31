@@ -137,8 +137,17 @@ model ContentPack {
   scriptures    Json            // { reference: string, text: string }[]
   keyPeople     Json            // string[]
   themes        Json            // string[]
-  questions     Json            // { question: string, answer: string, options?: string[] }[]
+  questions     Json            // { question, answer, simplifiedAnswer?, keyWords?, options?, imageUrl?, subheading?, references? }[]
   keyPhrases    Json            // string[] — for meeting bingo / tap games
+  // WOL source metadata (populated when the pack was imported from a
+  // wol.jw.org article). Stored as references only — body prose lives
+  // at WOL, never copied here.
+  issueLabel     String?         // "2026 No. 4"
+  articleNumber  Int?            // 12
+  themeScripture Json?           // { reference: string } — citation only, no text
+  sourceUrl      String?         // canonical wol.jw.org URL
+  sourceDocId    String?         // WOL doc id, for re-imports
+  attribution    String?         // attribution line shown in the study UI
   meetingWeekId String?
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt

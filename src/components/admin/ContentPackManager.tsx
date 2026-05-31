@@ -135,8 +135,12 @@ export default function ContentPackManager() {
     setError("");
     // Fetch the single pack so we get its linked images (the list payload
     // omits them) for the per-question Little Ones picture picker.
+    // cache: "no-store" guarantees a fresh read every time — important so
+    // images uploaded from /admin/images in another tab show up immediately.
     try {
-      const res = await fetch(`/api/admin/content-packs/${id}`);
+      const res = await fetch(`/api/admin/content-packs/${id}`, {
+        cache: "no-store",
+      });
       if (res.ok) {
         setEditData((await res.json()) as ContentPack);
         setEditingId(id);
@@ -151,6 +155,38 @@ export default function ContentPackManager() {
       setEditingId(id);
     }
   };
+
+  /**
+   * Re-fetch just the linked images for the pack currently being edited.
+   * Used by:
+   *   - the "Refresh" link beside the per-question picture picker, so the
+   *     admin can manually pull in images uploaded elsewhere without
+   *     losing the changes they've already typed
+   *   - a visibilitychange listener that fires when this tab regains focus,
+   *     which handles the "uploaded in another tab" case automatically
+   */
+  const refreshEditImages = useCallback(async () => {
+    if (!editingId) return;
+    try {
+      const res = await fetch(`/api/admin/content-packs/${editingId}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const fresh = (await res.json()) as ContentPack;
+      setEditData((prev) => (prev ? { ...prev, images: fresh.images } : prev));
+    } catch {
+      // best-effort — leave the existing list alone on failure
+    }
+  }, [editingId]);
+
+  useEffect(() => {
+    if (!editingId) return;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void refreshEditImages();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [editingId, refreshEditImages]);
 
   /* ── Save edits ──────────────────────────────────────────────────── */
 
@@ -212,6 +248,7 @@ export default function ContentPackManager() {
           setEditingId(null);
           setEditData(null);
         }}
+        onRefreshImages={refreshEditImages}
         saving={saving}
         error={error}
       />
@@ -598,6 +635,7 @@ function PackImagesModal({
 function ContentPackEditor({
   data,
   onChange,
+  onRefreshImages,
   onSave,
   onCancel,
   saving,
@@ -605,6 +643,7 @@ function ContentPackEditor({
 }: {
   data: ContentPack;
   onChange: (d: ContentPack) => void;
+  onRefreshImages: () => Promise<void>;
   onSave: () => void;
   onCancel: () => void;
   saving: boolean;
@@ -625,6 +664,16 @@ function ContentPackEditor({
   // Watchtower study packs get the full manual Q&A editor (paragraph answer,
   // simplified answer, comment-building key words, multiple-choice options).
   const isWatchtower = data.source === "WATCHTOWER";
+
+  // Reorder helper — used by the per-question Up/Down buttons. Order matters
+  // for the Watchtower study flow and during the meeting.
+  const moveQuestion = (from: number, to: number) => {
+    if (to < 0 || to >= data.questions.length) return;
+    const next = [...data.questions];
+    const [item] = next.splice(from, 1);
+    next.splice(to, 0, item);
+    onChange({ ...data, questions: next });
+  };
 
   return (
     <div className="space-y-6">
@@ -849,19 +898,44 @@ function ContentPackEditor({
                     className="flex-1 px-2 py-1 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm text-zinc-900 dark:text-zinc-100"
                     placeholder="Question"
                   />
-                  <button
-                    onClick={() =>
-                      onChange({
-                        ...data,
-                        questions: data.questions.filter(
-                          (_, idx) => idx !== i,
-                        ),
-                      })
-                    }
-                    className="text-red-400 hover:text-red-600 text-sm px-1 self-start"
-                  >
-                    x
-                  </button>
+                  <div className="flex flex-col gap-0.5 self-start">
+                    <button
+                      type="button"
+                      onClick={() => moveQuestion(i, i - 1)}
+                      disabled={i === 0}
+                      aria-label="Move question up"
+                      title="Move up"
+                      className="w-7 h-7 flex items-center justify-center text-sm rounded text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-700 dark:hover:text-zinc-100 disabled:text-zinc-300 dark:disabled:text-zinc-700 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveQuestion(i, i + 1)}
+                      disabled={i === data.questions.length - 1}
+                      aria-label="Move question down"
+                      title="Move down"
+                      className="w-7 h-7 flex items-center justify-center text-sm rounded text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-700 dark:hover:text-zinc-100 disabled:text-zinc-300 dark:disabled:text-zinc-700 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                    >
+                      ↓
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onChange({
+                          ...data,
+                          questions: data.questions.filter(
+                            (_, idx) => idx !== i,
+                          ),
+                        })
+                      }
+                      aria-label="Delete question"
+                      title="Delete"
+                      className="w-7 h-7 flex items-center justify-center text-sm rounded text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                    >
+                      ×
+                    </button>
+                  </div>
                 </div>
                 <textarea
                   value={q.answer}
@@ -941,11 +1015,31 @@ function ContentPackEditor({
                         />
                       )}
                     </div>
-                    {(data.images ?? []).length === 0 && (
+                    {/* Only render the refresh link on the first question to
+                        avoid 18 repeats; it refreshes the list for every
+                        picker since they all share data.images. */}
+                    {i === 0 && (
                       <p className="text-xs text-zinc-400">
-                        No pictures linked yet — add them with the{" "}
+                        {(data.images ?? []).length} picture(s) available.{" "}
+                        <button
+                          type="button"
+                          onClick={() => void onRefreshImages()}
+                          className="text-coral-600 dark:text-coral-400 hover:underline"
+                        >
+                          Refresh
+                        </button>{" "}
+                        if you just uploaded more.
+                      </p>
+                    )}
+                    {(data.images ?? []).length === 0 && i === 0 && (
+                      <p className="text-xs text-zinc-400">
+                        No pictures linked yet — upload via{" "}
+                        <span className="font-medium">
+                          /admin/images
+                        </span>{" "}
+                        (link to this pack), or use the{" "}
                         <span className="font-medium">Images</span> button on
-                        the pack list, then pick one per question here.
+                        the pack list, then click Refresh above.
                       </p>
                     )}
                   </>

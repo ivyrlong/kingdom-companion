@@ -4,6 +4,14 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 /* ── Types ─────────────────────────────────────────────────────────── */
 
+interface PendingUpload {
+  id: string;
+  file: File;
+  preview: string;
+  status: "pending" | "uploading" | "done" | "error";
+  error?: string;
+}
+
 interface ImageAsset {
   id: string;
   filename: string;
@@ -103,9 +111,8 @@ export default function ImageManager() {
   const [activeCategory, setActiveCategory] = useState<string>("All");
   const [error, setError] = useState("");
 
-  /* State – upload form */
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+  /* State – upload form (queue holds one or more files for batch upload) */
+  const [queue, setQueue] = useState<PendingUpload[]>([]);
   const [uploadCategories, setUploadCategories] = useState<string[]>(["SCENE"]);
   const [ageGroup, setAgeGroup] = useState<string>("FAMILY");
   const [uploadPackId, setUploadPackId] = useState<string>("");
@@ -157,30 +164,53 @@ export default function ImageManager() {
 
   /* ── File selection helpers ──────────────────────────────────────── */
 
-  const handleFileSelect = useCallback((selected: File) => {
-    setFile(selected);
-    const url = URL.createObjectURL(selected);
-    setPreview(url);
+  const addToQueue = useCallback((files: File[]) => {
+    const imageFiles = files.filter((f) => f.type.startsWith("image/"));
+    if (imageFiles.length === 0) return;
+    const items: PendingUpload[] = imageFiles.map((f) => ({
+      id:
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      file: f,
+      preview: URL.createObjectURL(f),
+      status: "pending",
+    }));
+    setQueue((q) => [...q, ...items]);
+  }, []);
+
+  const removeFromQueue = useCallback((id: string) => {
+    setQueue((q) => {
+      const item = q.find((x) => x.id === id);
+      if (item) URL.revokeObjectURL(item.preview);
+      return q.filter((x) => x.id !== id);
+    });
+  }, []);
+
+  const clearQueue = useCallback(() => {
+    setQueue((q) => {
+      q.forEach((item) => URL.revokeObjectURL(item.preview));
+      return [];
+    });
   }, []);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
       setDragOver(false);
-      const dropped = e.dataTransfer.files[0];
-      if (dropped && dropped.type.startsWith("image/")) {
-        handleFileSelect(dropped);
-      }
+      addToQueue(Array.from(e.dataTransfer.files));
     },
-    [handleFileSelect],
+    [addToQueue],
   );
 
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const selected = e.target.files?.[0];
-      if (selected) handleFileSelect(selected);
+      const selected = e.target.files;
+      if (selected && selected.length > 0) addToQueue(Array.from(selected));
+      // Reset the input so re-selecting the same file still fires onChange.
+      e.target.value = "";
     },
-    [handleFileSelect],
+    [addToQueue],
   );
 
   const toggleUploadCategory = (cat: string) => {
@@ -191,53 +221,98 @@ export default function ImageManager() {
 
   /* ── Upload ──────────────────────────────────────────────────────── */
 
+  /**
+   * Uploads every queued file sequentially. Items already marked "done"
+   * are skipped, so a partial-failure retry only re-attempts the ones
+   * that errored. Form fields (categories, age group, pack, alt, tags)
+   * are applied to every file in the batch; per-image alt/tag tweaks
+   * are done after upload via the Edit modal.
+   */
   const handleUpload = async () => {
-    if (!file) return;
+    if (queue.length === 0) return;
     if (uploadCategories.length === 0) {
       setError("Pick at least one category before uploading.");
       return;
     }
+
+    const toUpload = queue.filter((q) => q.status !== "done");
+    if (toUpload.length === 0) return;
+
     setUploading(true);
     setError("");
 
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("categories", JSON.stringify(uploadCategories));
-    formData.append("ageGroup", ageGroup);
-    if (uploadPackId) formData.append("contentPackId", uploadPackId);
-    formData.append("altText", altText);
-    formData.append(
-      "tags",
-      JSON.stringify(
-        tags
-          .split(",")
-          .map((t) => t.trim())
-          .filter(Boolean),
-      ),
+    const sharedTags = JSON.stringify(
+      tags
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean),
     );
 
-    try {
-      const res = await fetch("/api/admin/images", {
-        method: "POST",
-        body: formData,
-      });
-      if (res.ok) {
-        /* Reset form */
-        setFile(null);
-        setPreview(null);
-        setAltText("");
-        setTags("");
-        setUploadPackId("");
-        if (fileInputRef.current) fileInputRef.current.value = "";
-        fetchImages();
-      } else {
-        const data = await res.json().catch(() => null);
-        setError(data?.error || "Upload failed.");
+    let succeededInRun = 0;
+    for (const item of toUpload) {
+      setQueue((q) =>
+        q.map((x) =>
+          x.id === item.id
+            ? { ...x, status: "uploading", error: undefined }
+            : x,
+        ),
+      );
+
+      const formData = new FormData();
+      formData.append("file", item.file);
+      formData.append("categories", JSON.stringify(uploadCategories));
+      formData.append("ageGroup", ageGroup);
+      if (uploadPackId) formData.append("contentPackId", uploadPackId);
+      formData.append("altText", altText);
+      formData.append("tags", sharedTags);
+
+      try {
+        const res = await fetch("/api/admin/images", {
+          method: "POST",
+          body: formData,
+        });
+        if (res.ok) {
+          succeededInRun++;
+          setQueue((q) =>
+            q.map((x) => (x.id === item.id ? { ...x, status: "done" } : x)),
+          );
+        } else {
+          const data = await res.json().catch(() => null);
+          const msg = data?.error || `Upload failed (${res.status})`;
+          setQueue((q) =>
+            q.map((x) =>
+              x.id === item.id ? { ...x, status: "error", error: msg } : x,
+            ),
+          );
+        }
+      } catch {
+        setQueue((q) =>
+          q.map((x) =>
+            x.id === item.id
+              ? { ...x, status: "error", error: "Upload failed" }
+              : x,
+          ),
+        );
       }
-    } catch {
-      setError("Upload failed.");
-    } finally {
-      setUploading(false);
+    }
+
+    setUploading(false);
+    fetchImages();
+
+    // If the whole batch (and any leftover errors from a prior run) all
+    // succeeded, clear the queue and reset the shared metadata fields.
+    if (succeededInRun === toUpload.length) {
+      // Read latest queue and clear only if everything is done.
+      setQueue((q) => {
+        if (q.every((x) => x.status === "done")) {
+          q.forEach((item) => URL.revokeObjectURL(item.preview));
+          return [];
+        }
+        return q;
+      });
+      setAltText("");
+      setTags("");
+      setUploadPackId("");
     }
   };
 
@@ -320,9 +395,23 @@ export default function ImageManager() {
 
       {/* ─── Upload Section ───────────────────────────────────────── */}
       <section className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-6">
-        <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50 mb-4">
-          Upload Image
-        </h2>
+        <div className="flex items-baseline justify-between mb-4">
+          <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
+            Upload Images
+          </h2>
+          {queue.length > 0 && (
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              {queue.filter((q) => q.status === "done").length} of{" "}
+              {queue.length} done
+              {queue.some((q) => q.status === "error") && (
+                <span className="text-red-500 dark:text-red-400">
+                  {" "}
+                  · {queue.filter((q) => q.status === "error").length} failed
+                </span>
+              )}
+            </p>
+          )}
+        </div>
 
         {/* Drop zone */}
         <div
@@ -351,41 +440,110 @@ export default function ImageManager() {
             ref={fileInputRef}
             type="file"
             accept="image/*"
+            multiple
             onChange={handleInputChange}
             className="hidden"
           />
 
-          {preview ? (
-            <img
-              src={preview}
-              alt="Preview"
-              className="max-h-48 rounded-lg object-contain mb-3"
-            />
-          ) : (
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="40"
-              height="40"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="text-zinc-400 dark:text-zinc-500 mb-3"
-            >
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="17 8 12 3 7 8" />
-              <line x1="12" y1="3" x2="12" y2="15" />
-            </svg>
-          )}
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="40"
+            height="40"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="text-zinc-400 dark:text-zinc-500 mb-3"
+          >
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" y1="3" x2="12" y2="15" />
+          </svg>
 
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            {file
-              ? file.name
-              : "Drag & drop an image here, or click to browse"}
+            {queue.length === 0
+              ? "Drag & drop one or many images here, or click to browse"
+              : `Add more — ${queue.length} selected so far`}
           </p>
         </div>
+
+        {/* Queue preview */}
+        {queue.length > 0 && (
+          <div className="mt-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                Selected images
+              </p>
+              <button
+                type="button"
+                onClick={clearQueue}
+                disabled={uploading}
+                className="text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 disabled:opacity-40"
+              >
+                Clear all
+              </button>
+            </div>
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+              {queue.map((item) => (
+                <div
+                  key={item.id}
+                  className="relative group aspect-square rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800"
+                  title={item.error ? `${item.file.name} — ${item.error}` : item.file.name}
+                >
+                  <img
+                    src={item.preview}
+                    alt=""
+                    className={`w-full h-full object-cover transition ${
+                      item.status === "uploading"
+                        ? "opacity-50"
+                        : item.status === "error"
+                          ? "opacity-60"
+                          : ""
+                    }`}
+                  />
+                  {/* Status badge */}
+                  {item.status !== "pending" && (
+                    <div
+                      className={`absolute top-1 left-1 text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${
+                        item.status === "done"
+                          ? "bg-emerald-500 text-white"
+                          : item.status === "uploading"
+                            ? "bg-sky-500 text-white"
+                            : "bg-red-500 text-white"
+                      }`}
+                    >
+                      {item.status === "done"
+                        ? "✓"
+                        : item.status === "uploading"
+                          ? "…"
+                          : "!"}
+                    </div>
+                  )}
+                  {/* Remove button (hidden while uploading) */}
+                  {item.status !== "uploading" && (
+                    <button
+                      type="button"
+                      onClick={() => removeFromQueue(item.id)}
+                      disabled={uploading}
+                      className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 hover:bg-black/80 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition disabled:opacity-0"
+                      aria-label={`Remove ${item.file.name}`}
+                    >
+                      ×
+                    </button>
+                  )}
+                  {/* Filename overlay */}
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-1.5 py-1">
+                    <p className="text-[10px] text-white truncate">
+                      {item.file.name}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Form fields */}
         <div className="mt-4 space-y-4">
@@ -434,7 +592,12 @@ export default function ImageManager() {
 
             <div>
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                Alt Text
+                Alt Text{" "}
+                {queue.length > 1 && (
+                  <span className="text-zinc-400">
+                    (applied to all — edit per image later)
+                  </span>
+                )}
               </label>
               <input
                 type="text"
@@ -481,39 +644,58 @@ export default function ImageManager() {
           </div>
         </div>
 
-        <button
-          onClick={handleUpload}
-          disabled={!file || uploading || uploadCategories.length === 0}
-          className="mt-4 px-6 py-2.5 bg-coral-600 hover:bg-coral-700 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 text-white disabled:text-zinc-500 dark:disabled:text-zinc-500 text-sm font-medium rounded-lg transition"
-        >
-          {uploading ? (
-            <span className="flex items-center gap-2">
-              <svg
-                className="animate-spin h-4 w-4"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                />
-              </svg>
-              Uploading...
-            </span>
-          ) : (
-            "Upload Image"
-          )}
-        </button>
+        {(() => {
+          const pendingCount = queue.filter(
+            (q) => q.status !== "done",
+          ).length;
+          const hasErrors = queue.some((q) => q.status === "error");
+          const label = uploading
+            ? `Uploading ${queue.filter((q) => q.status === "uploading" || q.status === "pending").length} of ${pendingCount}…`
+            : pendingCount === 0
+              ? "Upload"
+              : hasErrors
+                ? `Retry ${pendingCount} image${pendingCount === 1 ? "" : "s"}`
+                : `Upload ${pendingCount} image${pendingCount === 1 ? "" : "s"}`;
+          return (
+            <button
+              onClick={handleUpload}
+              disabled={
+                pendingCount === 0 ||
+                uploading ||
+                uploadCategories.length === 0
+              }
+              className="mt-4 px-6 py-2.5 bg-coral-600 hover:bg-coral-700 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 text-white disabled:text-zinc-500 dark:disabled:text-zinc-500 text-sm font-medium rounded-lg transition"
+            >
+              {uploading ? (
+                <span className="flex items-center gap-2">
+                  <svg
+                    className="animate-spin h-4 w-4"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                    />
+                  </svg>
+                  {label}
+                </span>
+              ) : (
+                label
+              )}
+            </button>
+          );
+        })()}
       </section>
 
       {/* ─── Image Grid Section ───────────────────────────────────── */}

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
+import { questionSchema } from "./_schemas";
 
 const createSchema = z.object({
   title: z.string().min(1),
@@ -14,21 +15,17 @@ const createSchema = z.object({
   ),
   keyPeople: z.array(z.string()),
   themes: z.array(z.string()),
-  questions: z.array(
-    z.object({
-      question: z.string(),
-      answer: z.string().default(""),
-      // Watchtower study: kid-level answer + comment-building word bank +
-      // an optional per-question picture for the Little Ones reveal.
-      simplifiedAnswer: z.string().default(""),
-      keyWords: z.array(z.string()).default([]),
-      options: z.array(z.string()).default([]),
-      imageUrl: z.string().default(""),
-    })
-  ),
+  questions: z.array(questionSchema),
   keyPhrases: z.array(z.string()),
   meetingWeekId: z.string().optional(),
   generateInstances: z.boolean().default(true),
+  // WOL metadata
+  issueLabel: z.string().optional(),
+  articleNumber: z.number().int().optional(),
+  themeScripture: z.object({ reference: z.string() }).optional(),
+  sourceUrl: z.string().optional(),
+  sourceDocId: z.string().optional(),
+  attribution: z.string().optional(),
 });
 
 export async function GET(req: Request) {
@@ -87,6 +84,12 @@ export async function POST(req: Request) {
       questions: data.questions,
       keyPhrases: data.keyPhrases,
       meetingWeekId: data.meetingWeekId || null,
+      issueLabel: data.issueLabel,
+      articleNumber: data.articleNumber,
+      themeScripture: data.themeScripture,
+      sourceUrl: data.sourceUrl,
+      sourceDocId: data.sourceDocId,
+      attribution: data.attribution,
     },
   });
 
@@ -101,7 +104,11 @@ export async function POST(req: Request) {
         instancesToCreate.push({
           gameId: game.id,
           contentPackId: contentPack.id,
-          context: data.context,
+          // Listening games belong to the live meeting regardless of the
+          // pack's own context — the pack itself can be prep/live/either.
+          context: ALWAYS_LIVE_GAMES.has(game.slug)
+            ? "MEETING_LIVE"
+            : data.context,
           title: `${game.title} — ${data.title}`,
         });
       }
@@ -114,6 +121,17 @@ export async function POST(req: Request) {
 
   return NextResponse.json(contentPack, { status: 201 });
 }
+
+/**
+ * Listening / participation games that only make sense during the live
+ * meeting. Their instances are forced to MEETING_LIVE on creation, even
+ * if the pack itself was filed as MEETING_PREP.
+ */
+const ALWAYS_LIVE_GAMES = new Set([
+  "quiet-listeners",
+  "meeting-bingo",
+  "tap-when-you-hear",
+]);
 
 /**
  * Check if a game engine can use this content pack based on available data.

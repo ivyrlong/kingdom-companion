@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
+import { questionSchema } from "../_schemas";
 
 const updateSchema = z.object({
   title: z.string().min(1).optional(),
@@ -15,23 +16,19 @@ const updateSchema = z.object({
     .optional(),
   keyPeople: z.array(z.string()).optional(),
   themes: z.array(z.string()).optional(),
-  questions: z
-    .array(
-      z.object({
-        question: z.string(),
-        answer: z.string().default(""),
-        // Watchtower study: kid-level answer + comment-building word bank +
-        // an optional per-question picture for the Little Ones reveal.
-        simplifiedAnswer: z.string().default(""),
-        keyWords: z.array(z.string()).default([]),
-        options: z.array(z.string()).default([]),
-        imageUrl: z.string().default(""),
-      }),
-    )
-    .optional(),
+  questions: z.array(questionSchema).optional(),
   keyPhrases: z.array(z.string()).optional(),
   comment: z.string().nullable().optional(),
   simplifiedComment: z.string().nullable().optional(),
+  // WOL metadata — same fields admins can set on create. JSON columns
+  // (themeScripture) can't carry a JS `null` through Prisma's typed
+  // update input, so they're optional-only.
+  issueLabel: z.string().nullable().optional(),
+  articleNumber: z.number().int().nullable().optional(),
+  themeScripture: z.object({ reference: z.string() }).optional(),
+  sourceUrl: z.string().nullable().optional(),
+  sourceDocId: z.string().nullable().optional(),
+  attribution: z.string().nullable().optional(),
 });
 
 async function authorize() {

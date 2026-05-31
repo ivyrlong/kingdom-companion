@@ -14,20 +14,31 @@ interface StudyData {
   title: string;
   imageUrl: string | null;
   questions: StudyQuestion[];
+  scriptures: Array<{ reference: string; text: string }>;
   savedResponses: Record<number, SavedStudyResponse>;
+  attribution: string | null;
+  sourceUrl: string | null;
 }
 
 const TABS = [
   { key: "prep", label: "This Week" },
   { key: "live", label: "Meeting Live" },
 ] as const;
-
 type TabKey = (typeof TABS)[number]["key"];
 
-const EMPTY: Record<TabKey, string> = {
-  prep: "No meeting preparation games for this week yet. An admin needs to add this week's content.",
-  live: "No meeting live games for this week yet. Check back before your next meeting!",
-};
+// The two weekly meetings. A meeting-week game card belongs to the midweek
+// (Life & Ministry / OCLM) meeting or the weekend (Watchtower Study) meeting,
+// decided by its content source. The Watchtower study panel only belongs to
+// the weekend meeting.
+const MEETINGS = [
+  { key: "OCLM", label: "Life & Ministry" },
+  { key: "WATCHTOWER", label: "Watchtower Study" },
+] as const;
+type MeetingKey = (typeof MEETINGS)[number]["key"];
+
+function cardMeeting(c: GameCard): MeetingKey {
+  return c.source === "OCLM" ? "OCLM" : "WATCHTOWER";
+}
 
 export default function MeetingTabs({
   prep,
@@ -45,8 +56,26 @@ export default function MeetingTabs({
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabKey>("prep");
 
-  const data: Record<TabKey, GameCard[]> = { prep, live };
+  const all = [...prep, ...live];
+  const hasWatchtower =
+    !!study || all.some((c) => cardMeeting(c) === "WATCHTOWER");
+  const hasOclm = all.some((c) => cardMeeting(c) === "OCLM");
+  // Land on whichever meeting actually has content; if both, default to the
+  // weekend meeting (it carries the study panel).
+  const [meeting, setMeeting] = useState<MeetingKey>(
+    hasOclm && !hasWatchtower ? "OCLM" : "WATCHTOWER",
+  );
+
+  const byMeeting = (cards: GameCard[]) =>
+    cards.filter((c) => cardMeeting(c) === meeting);
+
+  const data: Record<TabKey, GameCard[]> = {
+    prep: byMeeting(prep),
+    live: byMeeting(live),
+  };
   const cards = data[activeTab];
+  const showStudy = meeting === "WATCHTOWER" && !!study;
+  const meetingLabel = MEETINGS.find((m) => m.key === meeting)?.label ?? "";
 
   const navigateWeek = (direction: -1 | 1) => {
     const newOffset = weekOffset + direction;
@@ -55,8 +84,8 @@ export default function MeetingTabs({
 
   return (
     <>
-      {/* Tabs */}
-      <div className="flex gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1 mb-6 w-fit">
+      {/* Phase tabs */}
+      <div className="flex gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1 mb-3 w-fit">
         {TABS.map((tab) => {
           const count = data[tab.key].length;
           return (
@@ -76,6 +105,28 @@ export default function MeetingTabs({
             </button>
           );
         })}
+      </div>
+
+      {/* Which meeting */}
+      <div className="flex flex-col gap-1 mb-6">
+        <span className="text-xs font-medium text-zinc-400">
+          Which meeting?
+        </span>
+        <div className="flex gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1 w-fit">
+          {MEETINGS.map((m) => (
+            <button
+              key={m.key}
+              onClick={() => setMeeting(m.key)}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition ${
+                meeting === m.key
+                  ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-sm"
+                  : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
+              }`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Week navigation */}
@@ -107,27 +158,42 @@ export default function MeetingTabs({
         )}
       </div>
 
-      {/* Watchtower study — same pack/answers in both tabs, so Meeting Live
-          resumes whatever was prepared this week. */}
-      {study && (
+      {/* Watchtower study — weekend meeting only. Same pack/answers in both
+          tabs, so Meeting Live resumes whatever was prepared this week. */}
+      {showStudy && study && (
         <WatchtowerStudyPanel
           ageGroup={study.ageGroup}
           packId={study.packId}
           title={study.title}
           imageUrl={study.imageUrl}
           questions={study.questions}
+          scriptures={study.scriptures}
           savedResponses={study.savedResponses}
+          attribution={study.attribution}
+          sourceUrl={study.sourceUrl}
           live={activeTab === "live"}
         />
       )}
 
       {/* Body */}
       {cards.length === 0 ? (
-        <div className="text-center py-12">
-          <p className="text-zinc-500 dark:text-zinc-400 text-lg">
-            {EMPTY[activeTab]}
+        showStudy ? (
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            No extra {activeTab === "live" ? "meeting" : "preparation"} games
+            for this meeting yet — the study above is ready.
           </p>
-        </div>
+        ) : (
+          <div className="text-center py-12">
+            <p className="text-zinc-500 dark:text-zinc-400 text-lg">
+              No {meetingLabel}{" "}
+              {activeTab === "live" ? "meeting" : "preparation"} content for
+              this week yet.{" "}
+              {activeTab === "live"
+                ? "Check back before your next meeting!"
+                : "An admin needs to add this week's content."}
+            </p>
+          </div>
+        )
       ) : (
         <GameCardGrid cards={cards} />
       )}

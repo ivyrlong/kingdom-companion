@@ -58,6 +58,7 @@ export default async function MeetingPage({
     title: inst.title,
     description: inst.game.description,
     imageUrl: resolveCardImage(inst.game.cardImages, userAgeGroup),
+    source: inst.contentPack.source,
   });
 
   const prep = prepInstances.map(toCard);
@@ -81,7 +82,10 @@ export default async function MeetingPage({
     title: string;
     imageUrl: string | null;
     questions: StudyQuestion[];
+    scriptures: Array<{ reference: string; text: string }>;
     savedResponses: Record<number, SavedStudyResponse>;
+    attribution: string | null;
+    sourceUrl: string | null;
   } | null = null;
 
   if (watchtowerPack) {
@@ -112,7 +116,15 @@ export default async function MeetingPage({
       questions: Array.isArray(watchtowerPack.questions)
         ? (watchtowerPack.questions as unknown as StudyQuestion[])
         : [],
+      scriptures: Array.isArray(watchtowerPack.scriptures)
+        ? (watchtowerPack.scriptures as unknown as Array<{
+            reference: string;
+            text: string;
+          }>)
+        : [],
       savedResponses,
+      attribution: watchtowerPack.attribution ?? null,
+      sourceUrl: watchtowerPack.sourceUrl ?? null,
     };
   }
 

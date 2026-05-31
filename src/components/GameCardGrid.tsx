@@ -9,6 +9,9 @@ export interface GameCard {
   title: string;
   description: string;
   imageUrl?: string | null;
+  // Content source (e.g. "WATCHTOWER" | "OCLM"), used on the Meeting page to
+  // split cards by which meeting they belong to. Optional elsewhere.
+  source?: string;
 }
 
 export const AGE_GROUP_LABELS: Record<string, string> = {
