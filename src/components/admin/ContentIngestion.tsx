@@ -29,6 +29,30 @@ interface QuestionEntry {
   references?: ReferenceEntry[];
 }
 
+// ── OCLM workbook types (local mirrors of lib/wol-import.ts shapes) ──
+
+type OclmSectionKind = "OPENING" | "TREASURES" | "MINISTRY" | "LIVING" | "CLOSING";
+
+interface WorkbookPart {
+  number?: number;
+  kind: string;
+  section: OclmSectionKind;
+  title: string;
+  durationMin?: number;
+  scenarioTag?: string;
+  songNumber?: number;
+  videoUrl?: string;
+  videoTitle?: string;
+  references: ReferenceEntry[];
+  promptQuestions: string[];
+}
+
+interface OclmSection {
+  kind: OclmSectionKind;
+  title: string;
+  parts: WorkbookPart[];
+}
+
 type Step = "paste" | "review" | "done";
 
 export default function ContentIngestion() {
@@ -65,6 +89,19 @@ export default function ContentIngestion() {
   const [sourceDocId, setSourceDocId] = useState<string | undefined>(undefined);
   const [attribution, setAttribution] = useState<string | undefined>(undefined);
 
+  // OCLM-imported metadata (only set when the pack came from a /pub-mwb URL).
+  const [publicationCode, setPublicationCode] = useState<string | undefined>(
+    undefined,
+  );
+  const [bibleReadingRange, setBibleReadingRange] = useState<
+    { reference: string } | undefined
+  >(undefined);
+  const [bibleReadingAssignment, setBibleReadingAssignment] = useState<
+    { reference: string } | undefined
+  >(undefined);
+  const [songs, setSongs] = useState<number[]>([]);
+  const [sections, setSections] = useState<OclmSection[]>([]);
+
   // WOL URL importer state
   const [wolUrl, setWolUrl] = useState("");
   const [importing, setImporting] = useState(false);
@@ -73,10 +110,15 @@ export default function ContentIngestion() {
   const [error, setError] = useState("");
 
   /**
-   * Import a Watchtower study article from a wol.jw.org URL. Calls the
-   * server-side importer (which discards body prose) and pre-fills every
-   * review field so the admin only needs to type their own-words paragraph
-   * answers + simplified-for-kids answers + verify the extracted data.
+   * Import a Watchtower study article or OCLM workbook week from a
+   * wol.jw.org URL. The server-side dispatcher auto-detects the
+   * publication and returns a discriminated union; we branch on `kind`
+   * to populate either the Watchtower question fields or the OCLM
+   * section/part fields, then jump to the review step.
+   *
+   * Copyright posture: body prose is parsed server-side and discarded
+   * before the response is built — only citations, references, and
+   * derived data hit the client.
    */
   const handleWolImport = async () => {
     if (!wolUrl.trim()) return;
@@ -88,10 +130,43 @@ export default function ContentIngestion() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: wolUrl.trim() }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Import failed");
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Import failed");
 
-      // Top-level pack fields
+      const kind: "WATCHTOWER" | "OCLM" | undefined = result.kind;
+      const data = result.pack ?? result; // tolerate legacy un-wrapped responses
+
+      if (kind === "OCLM") {
+        // Top-level pack fields
+        setTitle(data.title ?? "");
+        setSource("OCLM");
+        setContext("MEETING_PREP");
+        setIssueLabel(data.issueLabel);
+        setArticleNumber(undefined);
+        setThemeScripture(undefined);
+        setSourceUrl(data.sourceUrl);
+        setSourceDocId(data.sourceDocId);
+        setAttribution(data.attribution);
+
+        // OCLM-specific
+        setPublicationCode(data.publicationCode);
+        setBibleReadingRange(data.bibleReadingRange);
+        setBibleReadingAssignment(data.bibleReadingAssignment);
+        setSongs(data.songs ?? []);
+        setSections(data.sections ?? []);
+
+        // Derived
+        setVocabulary(data.vocabulary ?? []);
+        setScriptures(data.scriptures ?? []);
+        setKeyPeople(data.keyPeople ?? []);
+        setThemes(data.themes ?? []);
+        setKeyPhrases(data.keyPhrases ?? []);
+        setQuestions([]); // OCLM doesn't use the Watchtower Q&A flow
+        setStep("review");
+        return;
+      }
+
+      // WATCHTOWER (default branch)
       setTitle(data.title ?? "");
       setSource("WATCHTOWER");
       setContext("MEETING_PREP");
@@ -101,6 +176,13 @@ export default function ContentIngestion() {
       setSourceUrl(data.sourceUrl);
       setSourceDocId(data.sourceDocId);
       setAttribution(data.attribution);
+
+      // Clear OCLM-specific just in case the admin imported back-to-back
+      setPublicationCode(undefined);
+      setBibleReadingRange(undefined);
+      setBibleReadingAssignment(undefined);
+      setSongs([]);
+      setSections([]);
 
       // Derived / structural fields
       setVocabulary(data.vocabulary ?? []);
@@ -219,6 +301,12 @@ export default function ContentIngestion() {
           ...(sourceUrl ? { sourceUrl } : {}),
           ...(sourceDocId ? { sourceDocId } : {}),
           ...(attribution ? { attribution } : {}),
+          // OCLM metadata — only sent when source=OCLM
+          ...(publicationCode ? { publicationCode } : {}),
+          ...(bibleReadingRange ? { bibleReadingRange } : {}),
+          ...(bibleReadingAssignment ? { bibleReadingAssignment } : {}),
+          ...(songs.length ? { songs } : {}),
+          ...(sections.length ? { sections } : {}),
         }),
       });
 
@@ -349,16 +437,19 @@ export default function ContentIngestion() {
               </div>
             )}
 
-            {/* WOL URL importer — fastest path for Watchtower articles.
+            {/* WOL URL importer — fastest path for both Watchtower study
+                articles and OCLM (Life & Ministry) workbook weeks. The
+                server auto-detects which publication the URL belongs to.
                 Body prose is never persisted; only structure, citations,
                 and derived data (vocab, people, themes, key phrases). */}
-            {source === "WATCHTOWER" && (
+            {(source === "WATCHTOWER" || source === "OCLM") && (
               <div className="rounded-xl border border-violet-200 dark:border-violet-900/40 bg-violet-50 dark:bg-violet-900/10 p-4 space-y-2">
                 <label className="block text-sm font-medium text-violet-900 dark:text-violet-200">
                   Import from WOL URL{" "}
                   <span className="text-xs font-normal text-violet-700/70 dark:text-violet-300/70">
-                    (fastest — pulls title, scriptures, references, and
-                    extracted vocabulary in one shot)
+                    {source === "OCLM"
+                      ? "(pulls the week's agenda, songs, references, and Bible-reading range)"
+                      : "(fastest — pulls title, scriptures, references, and extracted vocabulary in one shot)"}
                   </span>
                 </label>
                 <div className="flex flex-wrap gap-2">
@@ -379,9 +470,10 @@ export default function ContentIngestion() {
                   </button>
                 </div>
                 <p className="text-xs text-violet-700/80 dark:text-violet-300/70">
-                  Paste a canonical /wol/d/ URL. You&apos;ll still type
-                  your own-words answers + simplified-for-kids on the next
-                  step. Body prose stays at WOL — only metadata is stored.
+                  Paste a canonical /wol/d/ URL — the importer detects
+                  whether it&apos;s a Watchtower study or the Life &amp;
+                  Ministry workbook. Body prose stays at WOL; only
+                  metadata is stored.
                 </p>
                 {sourceUrl && (
                   <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
@@ -458,6 +550,11 @@ export default function ContentIngestion() {
             setSourceUrl(undefined);
             setSourceDocId(undefined);
             setAttribution(undefined);
+            setPublicationCode(undefined);
+            setBibleReadingRange(undefined);
+            setBibleReadingAssignment(undefined);
+            setSongs([]);
+            setSections([]);
             setWolUrl("");
             setImporting(false);
             setError("");
@@ -491,6 +588,18 @@ export default function ContentIngestion() {
         Review what was extracted. Add, remove, or edit items before publishing.
         The more content you include, the more games will be generated.
       </p>
+
+      {/* OCLM workbook outline preview — read-only summary so admins can
+          verify the import before publishing. Per-part editing is a
+          follow-up; for now the import is the source of truth. */}
+      {source === "OCLM" && sections.length > 0 && (
+        <OclmOutlinePreview
+          bibleReadingRange={bibleReadingRange}
+          bibleReadingAssignment={bibleReadingAssignment}
+          songs={songs}
+          sections={sections}
+        />
+      )}
 
       {/* Vocabulary */}
       <EditableListSection
@@ -586,7 +695,9 @@ export default function ContentIngestion() {
         onAdd={(item) => addToList(keyPhrases, setKeyPhrases, item)}
       />
 
-      {/* Questions */}
+      {/* Questions — Watchtower / EVERGREEN flow only. OCLM uses its
+          imported workbook outline instead. */}
+      {source !== "OCLM" && (
       <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-6">
         <h3 className="font-semibold text-zinc-900 dark:text-zinc-50 mb-1">
           Questions
@@ -731,6 +842,7 @@ export default function ContentIngestion() {
           + Add question
         </button>
       </div>
+      )}
 
       {error && (
         <div className="text-red-600 dark:text-red-400 text-sm">{error}</div>
@@ -818,6 +930,119 @@ function EditableListSection({
         >
           Add
         </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── OCLM workbook outline preview ────────────────────────────────────
+
+/**
+ * Read-only summary of an imported OCLM workbook week. Shows the three
+ * sections (Treasures / Ministry / Living) with their parts, durations,
+ * and reference counts so the admin can spot-check the import before
+ * publishing. Per-part editing is deferred to the pack editor.
+ */
+function OclmOutlinePreview({
+  bibleReadingRange,
+  bibleReadingAssignment,
+  songs,
+  sections,
+}: {
+  bibleReadingRange?: { reference: string };
+  bibleReadingAssignment?: { reference: string };
+  songs: number[];
+  sections: OclmSection[];
+}) {
+  const sectionLabel: Record<OclmSectionKind, string> = {
+    OPENING: "Opening",
+    TREASURES: "Treasures From God's Word",
+    MINISTRY: "Apply Yourself to the Field Ministry",
+    LIVING: "Living as Christians",
+    CLOSING: "Closing",
+  };
+  const sectionTone: Record<OclmSectionKind, string> = {
+    OPENING: "text-zinc-600 dark:text-zinc-300",
+    TREASURES: "text-emerald-700 dark:text-emerald-300",
+    MINISTRY: "text-amber-700 dark:text-amber-300",
+    LIVING: "text-violet-700 dark:text-violet-300",
+    CLOSING: "text-zinc-600 dark:text-zinc-300",
+  };
+
+  return (
+    <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-6 space-y-4">
+      <div>
+        <h3 className="font-semibold text-zinc-900 dark:text-zinc-50 mb-1">
+          Workbook outline
+        </h3>
+        <p className="text-xs text-zinc-400">
+          Auto-imported from WOL. Edit individual parts after publishing.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap gap-2 text-xs">
+        {bibleReadingRange && (
+          <span className="px-2.5 py-1 rounded-lg bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300">
+            📖 {bibleReadingRange.reference}
+          </span>
+        )}
+        {bibleReadingAssignment && (
+          <span className="px-2.5 py-1 rounded-lg bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300">
+            🎙 Student reading: {bibleReadingAssignment.reference}
+          </span>
+        )}
+        {songs.map((n, i) => (
+          <span
+            key={i}
+            className="px-2.5 py-1 rounded-lg bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300"
+          >
+            ♪ Song {n}
+          </span>
+        ))}
+      </div>
+
+      <div className="space-y-4">
+        {sections.map((s, i) => (
+          <div key={i} className="border-t border-zinc-200 dark:border-zinc-800 pt-3">
+            <div
+              className={`text-xs font-semibold uppercase tracking-wide ${sectionTone[s.kind]}`}
+            >
+              {sectionLabel[s.kind]}
+            </div>
+            <ul className="mt-2 space-y-1.5">
+              {s.parts.map((p, j) => (
+                <li
+                  key={j}
+                  className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm"
+                >
+                  {p.number !== undefined && (
+                    <span className="text-zinc-400 tabular-nums">{p.number}.</span>
+                  )}
+                  <span className="text-zinc-900 dark:text-zinc-100">
+                    {p.title}
+                  </span>
+                  {p.durationMin !== undefined && (
+                    <span className="text-xs text-zinc-500">({p.durationMin} min)</span>
+                  )}
+                  {p.scenarioTag && (
+                    <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300">
+                      {p.scenarioTag}
+                    </span>
+                  )}
+                  {p.references.length > 0 && (
+                    <span className="text-xs text-zinc-400">
+                      · {p.references.length} ref
+                      {p.references.length === 1 ? "" : "s"}
+                    </span>
+                  )}
+                  {p.videoUrl && (
+                    <span className="text-xs text-zinc-400">· video</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
       </div>
     </div>
   );
