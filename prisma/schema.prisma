@@ -148,6 +148,17 @@ model ContentPack {
   sourceUrl      String?         // canonical wol.jw.org URL
   sourceDocId    String?         // WOL doc id, for re-imports
   attribution    String?         // attribution line shown in the study UI
+  // OCLM workbook metadata (populated when the pack was imported from a
+  // mwb (Life & Ministry Workbook) article). Same copyright posture as
+  // the Watchtower fields above — structure + citations only.
+  publicationCode        String? // "mwb", "wt", …
+  bibleReadingRange      Json?   // { reference: "Isaiah 65-66" }
+  bibleReadingAssignment Json?   // { reference: "Isa 65:17-25" }
+  songs                  Json?   // number[] — opening / middle / closing
+  // sections: full workbook outline. Each section is { kind, parts: WorkbookPart[] }
+  // where WorkbookPart = { number?, kind, title, durationMin?, scenarioTag?,
+  // songNumber?, videoUrl?, videoTitle?, references: ReferenceImport[], promptQuestions: string[] }
+  sections               Json?
   meetingWeekId String?
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
