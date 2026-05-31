@@ -7,6 +7,9 @@ import WatchtowerStudyPanel, {
   type StudyQuestion,
   type SavedStudyResponse,
 } from "@/components/WatchtowerStudyPanel";
+import WorkbookPanel, {
+  type WorkbookSection,
+} from "@/components/WorkbookPanel";
 
 interface StudyData {
   ageGroup: string;
@@ -16,6 +19,19 @@ interface StudyData {
   questions: StudyQuestion[];
   scriptures: Array<{ reference: string; text: string }>;
   savedResponses: Record<number, SavedStudyResponse>;
+  attribution: string | null;
+  sourceUrl: string | null;
+}
+
+interface WorkbookData {
+  ageGroup: string;
+  packId: string;
+  title: string;
+  bibleReadingRange: { reference: string } | null;
+  bibleReadingAssignment: { reference: string } | null;
+  songs: number[];
+  sections: WorkbookSection[];
+  vocabulary: string[];
   attribution: string | null;
   sourceUrl: string | null;
 }
@@ -46,12 +62,14 @@ export default function MeetingTabs({
   weekOffset,
   weekLabel,
   study,
+  workbook,
 }: {
   prep: GameCard[];
   live: GameCard[];
   weekOffset: number;
   weekLabel: string;
   study?: StudyData | null;
+  workbook?: WorkbookData | null;
 }) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabKey>("prep");
@@ -59,7 +77,8 @@ export default function MeetingTabs({
   const all = [...prep, ...live];
   const hasWatchtower =
     !!study || all.some((c) => cardMeeting(c) === "WATCHTOWER");
-  const hasOclm = all.some((c) => cardMeeting(c) === "OCLM");
+  const hasOclm =
+    !!workbook || all.some((c) => cardMeeting(c) === "OCLM");
   // Land on whichever meeting actually has content; if both, default to the
   // weekend meeting (it carries the study panel).
   const [meeting, setMeeting] = useState<MeetingKey>(
@@ -75,6 +94,7 @@ export default function MeetingTabs({
   };
   const cards = data[activeTab];
   const showStudy = meeting === "WATCHTOWER" && !!study;
+  const showWorkbook = meeting === "OCLM" && !!workbook;
   const meetingLabel = MEETINGS.find((m) => m.key === meeting)?.label ?? "";
 
   const navigateWeek = (direction: -1 | 1) => {
@@ -175,12 +195,31 @@ export default function MeetingTabs({
         />
       )}
 
+      {/* OCLM workbook — midweek meeting only. Same imported outline drives
+          both tabs; per-part notes persist across the prep → live handoff. */}
+      {showWorkbook && workbook && (
+        <WorkbookPanel
+          ageGroup={workbook.ageGroup}
+          packId={workbook.packId}
+          title={workbook.title}
+          bibleReadingRange={workbook.bibleReadingRange}
+          bibleReadingAssignment={workbook.bibleReadingAssignment}
+          songs={workbook.songs}
+          sections={workbook.sections}
+          vocabulary={workbook.vocabulary}
+          attribution={workbook.attribution}
+          sourceUrl={workbook.sourceUrl}
+          live={activeTab === "live"}
+        />
+      )}
+
       {/* Body */}
       {cards.length === 0 ? (
-        showStudy ? (
+        showStudy || showWorkbook ? (
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
             No extra {activeTab === "live" ? "meeting" : "preparation"} games
-            for this meeting yet — the study above is ready.
+            for this meeting yet — the {showStudy ? "study" : "workbook"} above
+            is ready.
           </p>
         ) : (
           <div className="text-center py-12">

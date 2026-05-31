@@ -10,6 +10,7 @@ import type {
   StudyQuestion,
   SavedStudyResponse,
 } from "@/components/WatchtowerStudyPanel";
+import type { WorkbookSection } from "@/components/WorkbookPanel";
 
 export const metadata = { title: "Meeting | Kingdom Companion" };
 
@@ -64,17 +65,25 @@ export default async function MeetingPage({
   const prep = prepInstances.map(toCard);
   const live = liveInstances.map(toCard);
 
-  // The week's Watchtower study material: a single content pack shown in both
-  // tabs. Because prep and live share one contentPackId, anything saved while
-  // preparing reappears during the meeting.
-  const watchtowerPack = await prisma.contentPack.findFirst({
-    where: {
-      source: "WATCHTOWER",
-      meetingWeek: { weekOf: { gte: startOfWeek, lte: endOfWeek } },
-    },
-    orderBy: { createdAt: "asc" },
-    include: { images: true },
-  });
+  // The week's midweek + weekend packs. Each meeting carries at most one
+  // pack; prep + live tabs share it so notes persist into the meeting.
+  const [watchtowerPack, oclmPack] = await Promise.all([
+    prisma.contentPack.findFirst({
+      where: {
+        source: "WATCHTOWER",
+        meetingWeek: { weekOf: { gte: startOfWeek, lte: endOfWeek } },
+      },
+      orderBy: { createdAt: "asc" },
+      include: { images: true },
+    }),
+    prisma.contentPack.findFirst({
+      where: {
+        source: "OCLM",
+        meetingWeek: { weekOf: { gte: startOfWeek, lte: endOfWeek } },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
+  ]);
 
   let study: {
     ageGroup: string;
@@ -128,6 +137,30 @@ export default async function MeetingPage({
     };
   }
 
+  const workbook = oclmPack
+    ? {
+        ageGroup: userAgeGroup,
+        packId: oclmPack.id,
+        title: oclmPack.title,
+        bibleReadingRange:
+          (oclmPack.bibleReadingRange as { reference: string } | null) ?? null,
+        bibleReadingAssignment:
+          (oclmPack.bibleReadingAssignment as { reference: string } | null) ??
+          null,
+        songs: Array.isArray(oclmPack.songs)
+          ? (oclmPack.songs as unknown as number[])
+          : [],
+        sections: Array.isArray(oclmPack.sections)
+          ? (oclmPack.sections as unknown as WorkbookSection[])
+          : [],
+        vocabulary: Array.isArray(oclmPack.vocabulary)
+          ? (oclmPack.vocabulary as unknown as string[])
+          : [],
+        attribution: oclmPack.attribution ?? null,
+        sourceUrl: oclmPack.sourceUrl ?? null,
+      }
+    : null;
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50 mb-2">
@@ -142,6 +175,7 @@ export default async function MeetingPage({
         weekOffset={weekOffset}
         weekLabel={label}
         study={study}
+        workbook={workbook}
       />
     </div>
   );
