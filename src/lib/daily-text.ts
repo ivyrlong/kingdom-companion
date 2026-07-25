@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { parseDailyText } from "@/lib/content-parser";
+import { rejoinLineBreakHyphens } from "@/lib/text-cleanup";
 
 export interface DailyTextInput {
   date: Date;
@@ -57,8 +58,14 @@ function isDailyGameCompatible(
 export async function createOrReplaceDailyText(
   input: DailyTextInput,
 ): Promise<DailyTextResult> {
-  const { date, scriptureRef, scriptureText, comment } = input;
-  const simplifiedComment = input.simplifiedComment;
+  // Rejoin any word split by a line-wrap hyphen from the source PDF /
+  // paste ("ap- preciation" → "appreciation"). Cheap, idempotent,
+  // never touches real compounds like "self-control".
+  const { date } = input;
+  const scriptureRef = rejoinLineBreakHyphens(input.scriptureRef);
+  const scriptureText = rejoinLineBreakHyphens(input.scriptureText);
+  const comment = rejoinLineBreakHyphens(input.comment);
+  const simplifiedComment = rejoinLineBreakHyphens(input.simplifiedComment);
   const featuredGameSlug = input.featuredGameSlug ?? null;
   const extracted = parseDailyText(scriptureRef, scriptureText, comment);
 

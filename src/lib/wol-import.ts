@@ -14,6 +14,7 @@ import * as cheerio from "cheerio";
 import type { CheerioAPI } from "cheerio";
 import type { AnyNode, Element as DomElement } from "domhandler";
 import { extractKeyPeople, extractVocabulary } from "@/lib/content-parser";
+import { rejoinLineBreakHyphensDeep } from "@/lib/text-cleanup";
 
 const WOL_ORIGIN = "https://wol.jw.org";
 
@@ -610,7 +611,7 @@ async function parseAsWatchtower(
       }. © Watch Tower.`
     : undefined;
 
-  return {
+  const pack: DraftPack = {
     title: displayTitle,
     source: "WATCHTOWER",
     context: "MEETING_PREP",
@@ -629,6 +630,10 @@ async function parseAsWatchtower(
     questions,
     keyPhrases,
   };
+  // Rejoin any line-wrap hyphens carried over from print layout — cheap
+  // and idempotent, never touches real compounds like "self-control".
+  rejoinLineBreakHyphensDeep(pack);
+  return pack;
 }
 
 // ═════════════════════════════════════════════════════════════════════
@@ -1170,7 +1175,7 @@ async function parseAsOclm(
   await resolvePcCitations(refs);
   await resolveBcCitations(refs);
 
-  return {
+  const pack: OclmDraftPack = {
     source: "OCLM",
     context: "MEETING_PREP",
     title: weekLabel,
@@ -1189,6 +1194,9 @@ async function parseAsOclm(
     sourceUrl: canonicalUrl,
     sourceDocId: docId,
   };
+  // Rejoin any line-wrap hyphens carried over from print layout.
+  rejoinLineBreakHyphensDeep(pack);
+  return pack;
 }
 
 /**
