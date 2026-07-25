@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
 import { questionSchema, oclmSectionSchema } from "./_schemas";
+import { ingestPackVocabulary } from "@/lib/vocabulary-ingest";
 
 const createSchema = z.object({
   title: z.string().min(1),
@@ -104,6 +105,24 @@ export async function POST(req: Request) {
     },
   });
 
+  // Ingest this pack's vocabulary + key phrases into the shared catalog.
+  // Runs after create (so we have a packId to link) but before the auto-
+  // seeded game instances (which don't yet consume the catalog — they
+  // still read the pack's snapshot field). Failure here is logged but
+  // NOT fatal to pack creation.
+  try {
+    await ingestPackVocabulary(prisma, contentPack.id, {
+      vocabulary: data.vocabulary,
+      keyPhrases: data.keyPhrases,
+    });
+  } catch (e) {
+    console.error(
+      "[vocab-ingest] failed for pack",
+      contentPack.id,
+      e instanceof Error ? e.message : String(e),
+    );
+  }
+
   // Auto-generate game instances for compatible game engines.
   //
   // For OCLM packs we synthesise a `keyPhrases` list from the imported
@@ -115,6 +134,7 @@ export async function POST(req: Request) {
     const games = await prisma.game.findMany({ where: { isActive: true } });
 
     const seedingData = {
+      source: data.source,
       vocabulary: data.vocabulary,
       scriptures: data.scriptures,
       questions: data.questions,
@@ -189,7 +209,7 @@ const ALWAYS_LIVE_GAMES = new Set([
  */
 function isGameCompatible(
   slug: string,
-  data: { vocabulary: string[]; scriptures: unknown[]; questions: unknown[]; keyPeople: string[]; keyPhrases: string[] }
+  data: { source: string; vocabulary: string[]; scriptures: unknown[]; questions: unknown[]; keyPeople: string[]; keyPhrases: string[] }
 ): boolean {
   switch (slug) {
     case "bible-word-search":
@@ -215,6 +235,10 @@ function isGameCompatible(
       return data.keyPhrases.length >= 9;
     case "tap-when-you-hear":
       return data.keyPhrases.length >= 5 || data.vocabulary.length >= 5;
+    // Meeting-week bonus game — new maze per OCLM pack, no content required.
+    // Skipped for Daily Text / Watchtower to avoid 396 extra instances.
+    case "meeting-maze":
+      return data.source === "OCLM";
     case "coloring-page":
       return false; // Requires uploaded images, not auto-generated
     default:

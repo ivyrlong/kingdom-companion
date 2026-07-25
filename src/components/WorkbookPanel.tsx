@@ -20,6 +20,9 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import { scaffoldFor, type PartScaffold } from "@/lib/oclm-scaffolding";
+import type { OclmPartKind } from "@/lib/wol-import";
+import FillInBlankCard from "./FillInBlankCard";
 
 // ── Shared types (mirror lib/wol-import.ts shapes) ────────────────────
 
@@ -49,6 +52,12 @@ export interface WorkbookPart {
   videoTitle?: string;
   references: WorkbookReference[];
   promptQuestions: string[];
+  /** Present after an admin runs "Generate AI insights" on the pack. */
+  aiContent?: {
+    kidSummary: string;
+    familyDiscussionQuestion: string;
+    listeningPhrases: string[];
+  };
 }
 
 export interface WorkbookSection {
@@ -218,6 +227,8 @@ function PartRow({
       ? "Outline / discussion notes…"
       : "What I want to remember…";
 
+  const scaffold = scaffoldFor(part.kind as OclmPartKind);
+
   return (
     <li className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3">
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
@@ -251,6 +262,12 @@ function PartRow({
         )}
       </div>
 
+      {scaffold?.focus && (
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+          {scaffold.focus}
+        </p>
+      )}
+
       {part.references.length > 0 && (
         <div className="mt-1.5 flex flex-wrap gap-1">
           {part.references.map((r, i) => (
@@ -259,23 +276,150 @@ function PartRow({
         </div>
       )}
 
+      {part.aiContent && (
+        <PartAiBlock ai={part.aiContent} ageGroup={ageGroup} />
+      )}
+
+      {/*
+        Fill-in-the-blank exercise seeded from the AI kid summary.
+        Little Ones already get the summary read aloud in the panel
+        above; Youth and Adult get the interactive version here so
+        they can turn the summary into a memory exercise.
+      */}
+      {part.aiContent && !isLittle && (
+        <FillInBlankCard
+          storageKey={`oclm-fitb:${packId}:${partKey(packId, part, idx)}`}
+          text={part.aiContent.kidSummary}
+          vocabulary={[
+            ...part.aiContent.listeningPhrases,
+          ]}
+        />
+      )}
+
+      {scaffold && (
+        <PartScaffoldBlock scaffold={scaffold} ageGroup={ageGroup} />
+      )}
+
       {part.promptQuestions.length > 0 && (
-        <ul className="mt-2 space-y-0.5">
-          {part.promptQuestions.map((q, i) => (
-            <li
-              key={i}
-              className="text-sm italic text-zinc-600 dark:text-zinc-400"
-            >
-              · {q}
-            </li>
-          ))}
-        </ul>
+        <div className="mt-2">
+          <p className="text-[10px] uppercase tracking-wide text-zinc-400 dark:text-zinc-500 font-semibold">
+            From the workbook
+          </p>
+          <ul className="mt-0.5 space-y-0.5">
+            {part.promptQuestions.map((q, i) => (
+              <li
+                key={i}
+                className="text-sm italic text-zinc-600 dark:text-zinc-400"
+              >
+                · {q}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {showNotes && (
         <PartNote storageKey={noteKey} placeholder={notePlaceholder} live={live} />
       )}
     </li>
+  );
+}
+
+/**
+ * Per-audience AI insights block. Rendered above the generic scaffold
+ * so week-specific content takes visual precedence — but the scaffold
+ * still shows underneath as a stable framework.
+ *
+ *   Little Ones → the kid summary + the phrases they'll hear.
+ *   Youth       → the family discussion question + phrases as chips.
+ *   Adult       → both the summary and the family discussion question.
+ */
+function PartAiBlock({
+  ai,
+  ageGroup,
+}: {
+  ai: NonNullable<WorkbookPart["aiContent"]>;
+  ageGroup: string;
+}) {
+  const isLittle = ageGroup === "LITTLE_ONES";
+
+  return (
+    <div className="mt-2 rounded-lg border border-sky-200 dark:border-sky-900/40 bg-sky-50/70 dark:bg-sky-900/10 px-3 py-2">
+      <p className="text-[10px] uppercase tracking-wide text-sky-700 dark:text-sky-300 font-semibold flex items-center gap-1">
+        <span aria-hidden>✨</span> This week
+      </p>
+
+      {isLittle ? (
+        <p className="mt-1 text-sm text-sky-900 dark:text-sky-100 leading-snug">
+          {ai.kidSummary}
+        </p>
+      ) : (
+        <>
+          {ageGroup === "ADULT" && (
+            <p className="mt-1 text-sm text-sky-900 dark:text-sky-100 leading-snug">
+              {ai.kidSummary}
+            </p>
+          )}
+          <p className="mt-1 text-sm italic text-sky-800 dark:text-sky-200">
+            💬 {ai.familyDiscussionQuestion}
+          </p>
+        </>
+      )}
+
+      {ai.listeningPhrases.length > 0 && (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {ai.listeningPhrases.map((p, i) => (
+            <span
+              key={i}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-white dark:bg-zinc-900 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-900/40"
+            >
+              <span aria-hidden>👂</span> {p}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Per-audience prep block for a workbook part. Little Ones get a single
+ * "listen for" cue (or nothing if the scaffold doesn't have one — songs,
+ * prayers). Youth and Adult get a labeled prep-prompt list.
+ */
+function PartScaffoldBlock({
+  scaffold,
+  ageGroup,
+}: {
+  scaffold: PartScaffold;
+  ageGroup: string;
+}) {
+  if (ageGroup === "LITTLE_ONES") {
+    if (!scaffold.little) return null;
+    return (
+      <p className="mt-2 text-sm text-coral-700 dark:text-coral-300 bg-coral-50/60 dark:bg-coral-900/10 rounded px-2 py-1.5">
+        👂 {scaffold.little}
+      </p>
+    );
+  }
+
+  const prompts =
+    ageGroup === "ADULT" ? scaffold.adultPrompts : scaffold.youthPrompts;
+  if (!prompts.length) return null;
+
+  return (
+    <div className="mt-2">
+      <p className="text-[10px] uppercase tracking-wide text-emerald-700 dark:text-emerald-400 font-semibold">
+        How to prepare
+      </p>
+      <ul className="mt-0.5 space-y-0.5">
+        {prompts.map((p, i) => (
+          <li key={i} className="text-sm text-zinc-700 dark:text-zinc-300">
+            · {p}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -341,8 +485,64 @@ export default function WorkbookPanel({
 }: Props) {
   const isLittle = ageGroup === "LITTLE_ONES";
 
+  // Auto-collect: on entry to Meeting Live for this pack, POST every
+  // token we can plausibly match against a curated Encyclopedia entry
+  // (vocabulary + workbook part titles + AI listening phrases). Runs
+  // exactly once per (packId, live=true) — a per-pack sessionStorage
+  // guard keeps it from re-firing across live/prep tab flips.
+  const [autoCollectedCount, setAutoCollectedCount] = useState<number | null>(null);
+  useEffect(() => {
+    if (!live) return;
+    const guardKey = `oclm-autocollect:${packId}`;
+    if (typeof window !== "undefined" && sessionStorage.getItem(guardKey)) return;
+
+    const tokens: string[] = [
+      ...vocabulary,
+      ...sections.flatMap((s) =>
+        s.parts.flatMap((p) => [
+          p.title,
+          ...(p.aiContent?.listeningPhrases ?? []),
+        ]),
+      ),
+    ];
+    if (tokens.length === 0) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/encyclopedia/collect-batch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tokens, source: `oclm-meeting:${packId}` }),
+        });
+        if (!res.ok || cancelled) return;
+        const body = await res.json();
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem(guardKey, "1");
+        }
+        if (typeof body.newlyCollected === "number" && body.newlyCollected > 0) {
+          setAutoCollectedCount(body.newlyCollected);
+          window.setTimeout(() => setAutoCollectedCount(null), 5000);
+        }
+      } catch {
+        // silent — encyclopedia collection is a non-blocking enrichment
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [live, packId, vocabulary, sections]);
+
   return (
     <section className="space-y-5 mb-8">
+      {autoCollectedCount !== null && autoCollectedCount > 0 && (
+        <div
+          role="status"
+          className="fixed top-4 right-4 z-50 px-4 py-2.5 rounded-xl bg-emerald-500 text-white shadow-lg text-sm font-medium animate-in fade-in slide-in-from-top-2"
+        >
+          ✨ +{autoCollectedCount} Bible word{autoCollectedCount > 1 ? "s" : ""} added to your book!
+        </div>
+      )}
       {/* Header */}
       <div className="rounded-2xl bg-gradient-to-br from-coral-50 to-amber-50 dark:from-coral-900/20 dark:to-amber-900/20 border border-coral-200 dark:border-coral-900/30 p-5">
         <div className="flex items-baseline flex-wrap gap-x-3 gap-y-1">

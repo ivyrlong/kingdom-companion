@@ -281,7 +281,16 @@ function classifyLink(
     return { type: "crossArticle", label, url: absoluteUrl(href) };
   }
 
-  // Anything else with a hyperlink to WOL (publications, navigation): /wol/pc/, etc.
+  // /wol/pc/ is WOL's "publication citation popup" endpoint — its JSON
+  // body powers the in-viewer popover, NOT a navigable page. We keep the
+  // URL here so the post-import resolver can fetch each one and rewrite
+  // it to the canonical /wol/d/ article URL.
+  if (href.includes("/wol/pc/")) {
+    return { type: "publication", label, url: absoluteUrl(href) };
+  }
+
+  // Anything else with a hyperlink to WOL (libraries, search, etc.) — keep
+  // it; these resolve to real pages.
   if (href) {
     return { type: "publication", label, url: absoluteUrl(href) };
   }
@@ -635,9 +644,11 @@ export type OclmPartKind =
   | "talk" // 10-min Treasures opening talk
   | "spiritualGems"
   | "bibleReading"
-  | "ministryConversation"
-  | "ministryDemo"
-  | "ministryTalk"
+  | "ministryConversation" // "Starting a Conversation"
+  | "returnVisit" // "Following Up"
+  | "ministryDemo" // any other demo not covered by the above
+  | "ministryTalk" // "Explaining Your Beliefs" and similar
+  | "bibleStudy" // "Conducting a Bible Study" (ministry, distinct from `cbs`)
   | "livingTalk"
   | "livingDiscussion"
   | "cbs" // Congregation Bible Study
@@ -664,6 +675,15 @@ export interface WorkbookPart {
   references: ReferenceImport[];
   /** Italic discussion-question prompts inside the part body. */
   promptQuestions: string[];
+  /**
+   * Optional AI-generated insights for this part. Absent until an admin
+   * runs the /api/admin/oclm-insights endpoint. See src/lib/oclm-insights.ts.
+   */
+  aiContent?: {
+    kidSummary: string;
+    familyDiscussionQuestion: string;
+    listeningPhrases: string[];
+  };
 }
 
 export interface OclmDraftSection {
@@ -731,9 +751,12 @@ function inferPartKind(
   if (t.includes("opening comments")) return "openingComments";
   if (section === "TREASURES") return "talk";
   if (section === "MINISTRY") {
-    if (t.includes("conversation") || t.includes("starting") || t.includes("following up"))
-      return "ministryConversation";
-    if (t.includes("talk")) return "ministryTalk";
+    // Order matters — check the specific return-visit / study labels first
+    // so they don't get bucketed into the generic "conversation" catch-all.
+    if (t.includes("following up") || t.includes("return visit")) return "returnVisit";
+    if (t.includes("bible study")) return "bibleStudy";
+    if (t.includes("explaining") || t.includes("talk")) return "ministryTalk";
+    if (t.includes("starting") || t.includes("conversation")) return "ministryConversation";
     return "ministryDemo";
   }
   if (section === "LIVING") {
@@ -937,11 +960,66 @@ function collectOclmSections($: CheerioAPI): OclmDraftSection[] {
 /**
  * Internal: turn an already-fetched OCLM JSON payload into an OclmDraftPack.
  */
-function parseAsOclm(
+/**
+ * Fetch every unique /wol/pc/ citation URL referenced in `sections`,
+ * extract the target article's `did` from the JSON response, and rewrite
+ * each reference's URL to the canonical /wol/d/r1/lp-e/{did} form so the
+ * chip actually opens a navigable article instead of the popup JSON blob.
+ *
+ * Failures are non-fatal — if a single citation can't be resolved we
+ * blank its URL (so the chip stays informative as a plain label rather
+ * than a broken link).
+ */
+async function resolvePcCitations(
+  sections: OclmDraftSection[],
+): Promise<void> {
+  const pcUrls = new Set<string>();
+  for (const s of sections) {
+    for (const p of s.parts) {
+      for (const r of p.references) {
+        if (r.url?.includes("/wol/pc/")) pcUrls.add(r.url);
+      }
+    }
+  }
+  if (pcUrls.size === 0) return;
+
+  const resolved = new Map<string, string | null>();
+  await Promise.all(
+    [...pcUrls].map(async (pc) => {
+      try {
+        const res = await fetch(pc, { headers: { accept: "application/json" } });
+        if (!res.ok) {
+          resolved.set(pc, null);
+          return;
+        }
+        const body = (await res.json()) as { items?: Array<{ did?: number }> };
+        const did = body.items?.[0]?.did;
+        resolved.set(
+          pc,
+          typeof did === "number" ? `${WOL_ORIGIN}/wol/d/r1/lp-e/${did}` : null,
+        );
+      } catch {
+        resolved.set(pc, null);
+      }
+    }),
+  );
+
+  for (const s of sections) {
+    for (const p of s.parts) {
+      p.references = p.references.map((r) => {
+        if (!r.url?.includes("/wol/pc/")) return r;
+        const next = resolved.get(r.url);
+        return next ? { ...r, url: next } : { ...r, url: undefined };
+      });
+    }
+  }
+}
+
+async function parseAsOclm(
   json: WolApiResponse,
   docId: string,
   canonicalUrl: string,
-): OclmDraftPack {
+): Promise<OclmDraftPack> {
   const title = stripTags(json.title ?? "");
   const locationText = stripTags(json.location ?? "");
   const { issueLabel, publicationCode } = parseLocation(locationText);
@@ -1037,6 +1115,10 @@ function parseAsOclm(
       }. © Watch Tower.`
     : undefined;
 
+  // Rewrite /wol/pc/ citation popup URLs to canonical /wol/d/ article
+  // URLs so reference chips open a real, readable page.
+  await resolvePcCitations(sections);
+
   return {
     source: "OCLM",
     context: "MEETING_PREP",
@@ -1072,7 +1154,7 @@ export async function importOclmFromWolUrl(input: string): Promise<OclmDraftPack
         `(detected ${pub}). Paste a /wol/d/ URL from the Meeting Workbook (mwb).`,
     );
   }
-  return parseAsOclm(json, docId, canonicalUrl);
+  return await parseAsOclm(json, docId, canonicalUrl);
 }
 
 /**
@@ -1089,7 +1171,7 @@ export async function importPackFromWolUrl(input: string): Promise<ImportedPack>
   const json = await fetchWolDoc(canonicalUrl);
   const pub = detectPublication(json);
   if (pub === "OCLM") {
-    return { kind: "OCLM", pack: parseAsOclm(json, docId, canonicalUrl) };
+    return { kind: "OCLM", pack: await parseAsOclm(json, docId, canonicalUrl) };
   }
   return { kind: "WATCHTOWER", pack: parseAsWatchtower(json, docId, canonicalUrl) };
 }

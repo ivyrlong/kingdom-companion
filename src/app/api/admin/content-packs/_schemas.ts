@@ -51,8 +51,10 @@ export const workbookPartSchema = z.object({
     "spiritualGems",
     "bibleReading",
     "ministryConversation",
+    "returnVisit",
     "ministryDemo",
     "ministryTalk",
+    "bibleStudy",
     "livingTalk",
     "livingDiscussion",
     "cbs",
@@ -67,6 +69,15 @@ export const workbookPartSchema = z.object({
   videoTitle: z.string().optional(),
   references: z.array(referenceSchema).default([]),
   promptQuestions: z.array(z.string()).default([]),
+  // Optional AI-generated insights for this part (populated by the
+  // /api/admin/oclm-insights endpoint after import).
+  aiContent: z
+    .object({
+      kidSummary: z.string(),
+      familyDiscussionQuestion: z.string(),
+      listeningPhrases: z.array(z.string()),
+    })
+    .optional(),
 });
 
 export const oclmSectionSchema = z.object({
