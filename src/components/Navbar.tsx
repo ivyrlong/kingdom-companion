@@ -43,6 +43,12 @@ export default function Navbar() {
               >
                 Profile
               </Link>
+              <Link
+                href="/about"
+                className="text-sm text-zinc-600 dark:text-zinc-300 hover:text-coral-600 dark:hover:text-coral-400 transition"
+              >
+                About
+              </Link>
               {(session.user as { role?: string }).role === "ADMIN" && (
                 <Link
                   href="/admin"
@@ -60,6 +66,12 @@ export default function Navbar() {
             </>
           ) : (
             <>
+              <Link
+                href="/about"
+                className="text-sm text-zinc-600 dark:text-zinc-300 hover:text-coral-600 dark:hover:text-coral-400 transition"
+              >
+                About
+              </Link>
               <Link
                 href="/login"
                 className="text-sm text-zinc-600 dark:text-zinc-300 hover:text-coral-600 dark:hover:text-coral-400 transition"
