@@ -523,7 +523,7 @@ async function fetchWolDoc(canonicalUrl: string): Promise<WolApiResponse> {
 export async function importFromWolUrl(input: string): Promise<DraftPack> {
   const { docId, canonicalUrl } = normaliseInput(input);
   const json = await fetchWolDoc(canonicalUrl);
-  return parseAsWatchtower(json, docId, canonicalUrl);
+  return await parseAsWatchtower(json, docId, canonicalUrl);
 }
 
 /**
@@ -531,11 +531,11 @@ export async function importFromWolUrl(input: string): Promise<DraftPack> {
  * Shared between the explicit Watchtower entry point and the unified
  * dispatcher (`importPackFromWolUrl`), so we only roundtrip to WOL once.
  */
-function parseAsWatchtower(
+async function parseAsWatchtower(
   json: WolApiResponse,
   docId: string,
   canonicalUrl: string,
-): DraftPack {
+): Promise<DraftPack> {
   const title = stripTags(json.title ?? "");
   const locationText = stripTags(json.location ?? "");
   const { issueLabel } = parseLocation(locationText);
@@ -570,6 +570,12 @@ function parseAsWatchtower(
     subheading: rq.subheading,
     references: dedupeReferences(rq.refs),
   }));
+
+  // Rewrite /wol/pc/ and /wol/bc/ popup URLs on scripture and publication
+  // chips so they open real WOL pages instead of the raw JSON popup.
+  const refs: ReferenceImport[] = questions.flatMap((q) => q.references);
+  await resolvePcCitations(refs);
+  await resolveBcCitations(refs);
 
   // Pack-level derived data — only single-word vocabulary matched
   // against our finite THEOCRATIC_TERMS list (no verbatim prose
@@ -970,16 +976,10 @@ function collectOclmSections($: CheerioAPI): OclmDraftSection[] {
  * blank its URL (so the chip stays informative as a plain label rather
  * than a broken link).
  */
-async function resolvePcCitations(
-  sections: OclmDraftSection[],
-): Promise<void> {
+async function resolvePcCitations(refs: ReferenceImport[]): Promise<void> {
   const pcUrls = new Set<string>();
-  for (const s of sections) {
-    for (const p of s.parts) {
-      for (const r of p.references) {
-        if (r.url?.includes("/wol/pc/")) pcUrls.add(r.url);
-      }
-    }
+  for (const r of refs) {
+    if (r.url?.includes("/wol/pc/")) pcUrls.add(r.url);
   }
   if (pcUrls.size === 0) return;
 
@@ -996,7 +996,7 @@ async function resolvePcCitations(
         const did = body.items?.[0]?.did;
         resolved.set(
           pc,
-          typeof did === "number" ? `${WOL_ORIGIN}/wol/d/r1/lp-e/${did}` : null,
+          typeof did === "number" ? `${WOL_ORIGIN}/en/wol/d/r1/lp-e/${did}` : null,
         );
       } catch {
         resolved.set(pc, null);
@@ -1004,15 +1004,64 @@ async function resolvePcCitations(
     }),
   );
 
-  for (const s of sections) {
-    for (const p of s.parts) {
-      p.references = p.references.map((r) => {
-        if (!r.url?.includes("/wol/pc/")) return r;
-        const next = resolved.get(r.url);
-        return next ? { ...r, url: next } : { ...r, url: undefined };
-      });
-    }
+  for (const r of refs) {
+    if (!r.url?.includes("/wol/pc/")) continue;
+    const next = resolved.get(r.url);
+    r.url = next ?? undefined;
   }
+}
+
+/**
+ * Fetch every unique /wol/bc/ scripture citation URL referenced in
+ * `sections` and rewrite each reference's URL to the navigable Bible
+ * reader page (/wol/b/r1/lp-e/nwtsty/{book}/{chapter}#v=…) extracted
+ * from the JSON response's `url` field.
+ *
+ * Same shape and failure policy as resolvePcCitations — /wol/bc/ is
+ * WOL's Bible-citation popup endpoint (returns JSON for the in-viewer
+ * tooltip), not a navigable page, so unresolved URLs are blanked.
+ */
+async function resolveBcCitations(refs: ReferenceImport[]): Promise<void> {
+  const bcUrls = new Set<string>();
+  for (const r of refs) {
+    if (r.url?.includes("/wol/bc/")) bcUrls.add(r.url);
+  }
+  if (bcUrls.size === 0) return;
+
+  const resolved = new Map<string, string | null>();
+  await Promise.all(
+    [...bcUrls].map(async (bc) => {
+      try {
+        const res = await fetch(bc, { headers: { accept: "application/json" } });
+        if (!res.ok) {
+          resolved.set(bc, null);
+          return;
+        }
+        const body = (await res.json()) as { items?: Array<{ url?: string }> };
+        const url = body.items?.[0]?.url;
+        // /wol/… returns API JSON; /en/wol/… returns the rendered HTML page.
+        // WOL's JSON gives back the API form, so prefix the language code.
+        resolved.set(
+          bc,
+          typeof url === "string" ? `${WOL_ORIGIN}/en${url}` : null,
+        );
+      } catch {
+        resolved.set(bc, null);
+      }
+    }),
+  );
+
+  for (const r of refs) {
+    if (!r.url?.includes("/wol/bc/")) continue;
+    const next = resolved.get(r.url);
+    r.url = next ?? undefined;
+  }
+}
+
+function collectOclmRefs(sections: OclmDraftSection[]): ReferenceImport[] {
+  const out: ReferenceImport[] = [];
+  for (const s of sections) for (const p of s.parts) out.push(...p.references);
+  return out;
 }
 
 async function parseAsOclm(
@@ -1115,9 +1164,11 @@ async function parseAsOclm(
       }. © Watch Tower.`
     : undefined;
 
-  // Rewrite /wol/pc/ citation popup URLs to canonical /wol/d/ article
-  // URLs so reference chips open a real, readable page.
-  await resolvePcCitations(sections);
+  // Rewrite /wol/pc/ and /wol/bc/ popup URLs to navigable pages so
+  // reference chips open real, readable WOL pages instead of raw JSON.
+  const refs = collectOclmRefs(sections);
+  await resolvePcCitations(refs);
+  await resolveBcCitations(refs);
 
   return {
     source: "OCLM",
@@ -1173,5 +1224,8 @@ export async function importPackFromWolUrl(input: string): Promise<ImportedPack>
   if (pub === "OCLM") {
     return { kind: "OCLM", pack: await parseAsOclm(json, docId, canonicalUrl) };
   }
-  return { kind: "WATCHTOWER", pack: parseAsWatchtower(json, docId, canonicalUrl) };
+  return {
+    kind: "WATCHTOWER",
+    pack: await parseAsWatchtower(json, docId, canonicalUrl),
+  };
 }
