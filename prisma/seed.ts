@@ -143,6 +143,95 @@ const games = [
     ageGroup: "LITTLE_ONES" as const,
     category: "Meeting Tool",
   },
+  {
+    slug: "meeting-maze",
+    title: "Meeting Maze",
+    description:
+      "A fresh maze puzzle every meeting week. Guide your dot from start to finish before your grown-ups say the closing prayer.",
+    ageGroup: "FAMILY" as const,
+    category: "Puzzle",
+  },
+];
+
+// Starter set of vocabulary categories. Broad on purpose — 8–10 buckets
+// are easier to maintain and to browse than 40. Add finer-grained ones as
+// you notice patterns while categorising the inbox.
+const vocabularyCategories = [
+  {
+    slug: "bible-characters",
+    name: "Bible Characters",
+    description: "People whose accounts we read in the Bible.",
+    icon: "👥",
+    sortOrder: 10,
+  },
+  {
+    slug: "jehovah-and-jesus",
+    name: "Jehovah and Jesus",
+    description: "Names, titles, and qualities of Jehovah and his Son.",
+    icon: "✨",
+    sortOrder: 20,
+  },
+  {
+    slug: "prayer",
+    name: "Prayer",
+    description: "Prayer, praise, thanksgiving, meditation.",
+    icon: "🙏",
+    sortOrder: 30,
+  },
+  {
+    slug: "worship-and-meetings",
+    name: "Worship & Meetings",
+    description:
+      "Songs, meetings, Watchtower study, personal Bible study.",
+    icon: "🎵",
+    sortOrder: 40,
+  },
+  {
+    slug: "ministry",
+    name: "Ministry",
+    description:
+      "Field service, preaching, witnessing, house-to-house, informal.",
+    icon: "🌾",
+    sortOrder: 50,
+  },
+  {
+    slug: "faith-and-trials",
+    name: "Faith & Trials",
+    description:
+      "Faith, patience, endurance, hardship, comfort, hope.",
+    icon: "🛡️",
+    sortOrder: 60,
+  },
+  {
+    slug: "family-and-marriage",
+    name: "Family & Marriage",
+    description: "Parents, children, marriage, family worship.",
+    icon: "🏡",
+    sortOrder: 70,
+  },
+  {
+    slug: "congregation-and-organization",
+    name: "Congregation & Organization",
+    description: "Elders, ministerial servants, congregation, branch office.",
+    icon: "🐑",
+    sortOrder: 80,
+  },
+  {
+    slug: "kingdom-hope",
+    name: "Kingdom Hope",
+    description:
+      "The Kingdom, paradise, resurrection, the new world.",
+    icon: "🌱",
+    sortOrder: 90,
+  },
+  {
+    slug: "christian-conduct",
+    name: "Christian Conduct",
+    description:
+      "Christian qualities, love, kindness, honesty, self-control.",
+    icon: "💛",
+    sortOrder: 100,
+  },
 ];
 
 const badges = [
@@ -191,6 +280,15 @@ async function main() {
       create: badge,
     });
     console.log(`  Badge: ${badge.name}`);
+  }
+
+  for (const cat of vocabularyCategories) {
+    await prisma.vocabularyCategory.upsert({
+      where: { slug: cat.slug },
+      update: cat,
+      create: cat,
+    });
+    console.log(`  Category: ${cat.name}`);
   }
 
   console.log("Seeding complete!");

@@ -69,20 +69,20 @@ model VerificationToken {
 // ─── Application Models ────────────────────────────────────────────────
 
 model Profile {
-  id           String   @id @default(cuid())
-  userId       String   @unique
-  displayName  String
-  avatarId     String   @default("default")
-  xp           Int      @default(0)
-  level        Int      @default(1)
-  congregation String?
+  id                     String           @id @default(cuid())
+  userId                 String           @unique
+  displayName            String
+  avatarId               String           @default("default")
+  xp                     Int              @default(0)
+  level                  Int              @default(1)
+  congregation           String?
   // Encyclopedia preferences. Mode applies to Youth/Family (Little Ones is
   // always playful, Adult always notebook). receiveCuratedFindings is the
   // Adult opt-in for admin-curated discoveries (off by default).
   encyclopediaMode       EncyclopediaMode @default(PLAYFUL)
   receiveCuratedFindings Boolean          @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
 
   user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   badges Badge[]
@@ -114,7 +114,7 @@ model Game {
 model MeetingWeek {
   id        String   @id @default(cuid())
   weekOf    DateTime @unique // Monday of the target week
-  title     String   // e.g. "Week of April 6, 2026"
+  title     String // e.g. "Week of April 6, 2026"
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -124,49 +124,51 @@ model MeetingWeek {
 
 // ContentPack = extracted material from an article, daily text, or evergreen Bible topic.
 model ContentPack {
-  id            String          @id @default(cuid())
-  title         String          // e.g. "WT Study - April 6" or "Daily Text - March 30"
-  source        ContentSource
-  context       GameContext      @default(EVERGREEN)
-  sourceText    String?         // original pasted text (for reference)
-  comment          String?      // Daily Text: the normal comment (Youth/Adult)
-  simplifiedComment String?     // Daily Text: simplified lesson for Little Ones
-  featuredGameSlug String?      // Daily Text: game embedded on the Little Ones Today page
-  date          DateTime?       // target date (for daily text) or null
-  vocabulary    Json            // string[]
-  scriptures    Json            // { reference: string, text: string }[]
-  keyPeople     Json            // string[]
-  themes        Json            // string[]
-  questions     Json            // { question, answer, simplifiedAnswer?, keyWords?, options?, imageUrl?, subheading?, references? }[]
-  keyPhrases    Json            // string[] — for meeting bingo / tap games
+  id                     String        @id @default(cuid())
+  title                  String // e.g. "WT Study - April 6" or "Daily Text - March 30"
+  source                 ContentSource
+  context                GameContext   @default(EVERGREEN)
+  sourceText             String? // original pasted text (for reference)
+  comment                String? // Daily Text: the normal comment (Youth/Adult)
+  simplifiedComment      String? // Daily Text: simplified lesson for Little Ones
+  featuredGameSlug       String? // Daily Text: game embedded on the Little Ones Today page
+  date                   DateTime? // target date (for daily text) or null
+  vocabulary             Json // string[]
+  scriptures             Json // { reference: string, text: string }[]
+  keyPeople              Json // string[]
+  themes                 Json // string[]
+  questions              Json // { question, answer, simplifiedAnswer?, keyWords?, options?, imageUrl?, subheading?, references? }[]
+  keyPhrases             Json // string[] — for meeting bingo / tap games
   // WOL source metadata (populated when the pack was imported from a
   // wol.jw.org article). Stored as references only — body prose lives
   // at WOL, never copied here.
-  issueLabel     String?         // "2026 No. 4"
-  articleNumber  Int?            // 12
-  themeScripture Json?           // { reference: string } — citation only, no text
-  sourceUrl      String?         // canonical wol.jw.org URL
-  sourceDocId    String?         // WOL doc id, for re-imports
-  attribution    String?         // attribution line shown in the study UI
+  issueLabel             String? // "2026 No. 4"
+  articleNumber          Int? // 12
+  themeScripture         Json? // { reference: string } — citation only, no text
+  sourceUrl              String? // canonical wol.jw.org URL
+  sourceDocId            String? // WOL doc id, for re-imports
+  attribution            String? // attribution line shown in the study UI
   // OCLM workbook metadata (populated when the pack was imported from a
   // mwb (Life & Ministry Workbook) article). Same copyright posture as
   // the Watchtower fields above — structure + citations only.
   publicationCode        String? // "mwb", "wt", …
-  bibleReadingRange      Json?   // { reference: "Isaiah 65-66" }
-  bibleReadingAssignment Json?   // { reference: "Isa 65:17-25" }
-  songs                  Json?   // number[] — opening / middle / closing
+  bibleReadingRange      Json? // { reference: "Isaiah 65-66" }
+  bibleReadingAssignment Json? // { reference: "Isa 65:17-25" }
+  songs                  Json? // number[] — opening / middle / closing
   // sections: full workbook outline. Each section is { kind, parts: WorkbookPart[] }
   // where WorkbookPart = { number?, kind, title, durationMin?, scenarioTag?,
   // songNumber?, videoUrl?, videoTitle?, references: ReferenceImport[], promptQuestions: string[] }
   sections               Json?
-  meetingWeekId String?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  meetingWeekId          String?
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
 
-  meetingWeek MeetingWeek?   @relation(fields: [meetingWeekId], references: [id], onDelete: SetNull)
-  instances   GameInstance[]
-  images      ImageAsset[]
-  dailyResponses DailyResponse[]
+  meetingWeek     MeetingWeek?         @relation(fields: [meetingWeekId], references: [id], onDelete: SetNull)
+  instances       GameInstance[]
+  images          ImageAsset[]
+  dailyResponses  DailyResponse[]
+  vocabularyLinks PackVocabularyLink[]
+  firstSeenTerms  VocabularyTerm[]     @relation("VocabularyFirstSeenPack")
 
   @@index([context])
   @@index([meetingWeekId])
@@ -178,8 +180,8 @@ model GameInstance {
   id            String      @id @default(cuid())
   gameId        String
   contentPackId String
-  context       GameContext  @default(EVERGREEN)
-  title         String      // e.g. "Word Search — WT April 6"
+  context       GameContext @default(EVERGREEN)
+  title         String // e.g. "Word Search — WT April 6"
   isActive      Boolean     @default(true)
   createdAt     DateTime    @default(now())
 
@@ -191,14 +193,14 @@ model GameInstance {
 }
 
 model GameSession {
-  id          String        @id @default(cuid())
-  userId      String
-  gameId      String
-  startedAt   DateTime      @default(now())
-  endedAt     DateTime?
-  status      SessionStatus @default(IN_PROGRESS)
-  score       Int           @default(0)
-  data        Json?
+  id        String        @id @default(cuid())
+  userId    String
+  gameId    String
+  startedAt DateTime      @default(now())
+  endedAt   DateTime?
+  status    SessionStatus @default(IN_PROGRESS)
+  score     Int           @default(0)
+  data      Json?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
@@ -221,8 +223,8 @@ model Score {
 }
 
 model Badge {
-  id          String @id @default(cuid())
-  name        String @unique
+  id          String  @id @default(cuid())
+  name        String  @unique
   description String
   imageUrl    String?
 
@@ -232,8 +234,8 @@ model Badge {
 // ImageAsset = uploaded images for visual games (puzzles, hidden objects, coloring).
 model ImageAsset {
   id            String          @id @default(cuid())
-  filename      String          // original filename
-  path          String          // relative path from public/ (e.g. "uploads/abc123.jpg")
+  filename      String // original filename
+  path          String // relative path from public/ (e.g. "uploads/abc123.jpg")
   altText       String          @default("")
   categories    ImageCategory[] @default([])
   ageGroup      AgeGroup        @default(FAMILY)
@@ -250,18 +252,18 @@ model ImageAsset {
 
 // EncyclopediaEntry = curated word/item kids can collect across games (Little Ones).
 model EncyclopediaEntry {
-  id          String               @id @default(cuid())
-  slug        String               @unique // canonical lowercase, e.g. "ark"
-  term        String               // display name, e.g. "Ark"
-  definition  String               // 1–2 sentence kid-friendly definition
-  imageUrl    String?              // path to image (from /public/uploads/...)
-  bibleRef    String?              // optional, e.g. "Genesis 6:14"
-  category    EncyclopediaCategory @default(THINGS)
-  triggers    Json                 @default("[]") // string[] — alternate slugs/keywords that trigger discovery
-  ageGroup    AgeGroup             @default(LITTLE_ONES)
-  isActive    Boolean              @default(true)
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @updatedAt
+  id         String               @id @default(cuid())
+  slug       String               @unique // canonical lowercase, e.g. "ark"
+  term       String // display name, e.g. "Ark"
+  definition String // 1–2 sentence kid-friendly definition
+  imageUrl   String? // path to image (from /public/uploads/...)
+  bibleRef   String? // optional, e.g. "Genesis 6:14"
+  category   EncyclopediaCategory @default(THINGS)
+  triggers   Json                 @default("[]") // string[] — alternate slugs/keywords that trigger discovery
+  ageGroup   AgeGroup             @default(LITTLE_ONES)
+  isActive   Boolean              @default(true)
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
 
   collections UserEncyclopediaCollection[]
 
@@ -271,12 +273,12 @@ model EncyclopediaEntry {
 
 // UserEncyclopediaCollection = which entries each user has collected, and where.
 model UserEncyclopediaCollection {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   userId      String
   entryId     String
   collectedAt DateTime  @default(now())
   viewedAt    DateTime? // first time opened in the book; null = still "New"
-  source      String?   // game slug where it was discovered
+  source      String? // game slug where it was discovered
 
   user  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   entry EncyclopediaEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
@@ -322,7 +324,7 @@ model DailyResponse {
   userId        String
   contentPackId String
   questionIndex Int
-  question      String   // snapshot of the question text at answer time
+  question      String // snapshot of the question text at answer time
   response      String
   // Optional structured prep state (Watchtower study): the Youth's built or
   // multiple-choice answer, so it carries from meeting prep into Meeting Live.
@@ -339,13 +341,96 @@ model DailyResponse {
 }
 
 enum ImageCategory {
-  SCENE              // For hidden objects, backgrounds
-  CHARACTER          // Bible character illustrations
-  ILLUSTRATION       // General illustrations for puzzles
-  OUTLINE            // Line art for coloring pages
-  PHOTO              // Photos
-  COLORING_SVG       // SVG files with regions for tap-to-fill (Little Ones)
-  COLORING_OUTLINE   // Raster outlines for freehand drawing (Youth/Adult)
+  SCENE // For hidden objects, backgrounds
+  CHARACTER // Bible character illustrations
+  ILLUSTRATION // General illustrations for puzzles
+  OUTLINE // Line art for coloring pages
+  PHOTO // Photos
+  COLORING_SVG // SVG files with regions for tap-to-fill (Little Ones)
+  COLORING_OUTLINE // Raster outlines for freehand drawing (Youth/Adult)
+}
+
+// ─── Vocabulary Catalog ────────────────────────────────────────────────
+//
+// The vocabulary catalog is a taxonomic, cross-pack dictionary of words
+// and phrases the app has seen. Instead of games pulling from `pack.vocabulary`
+// silos, they query the catalog with filters (category, age, useCount) so
+// coverage is diverse and every new pack contributes to a growing library.
+//
+// Terms are canonicalised on the `term` field (lowercased + trimmed) and
+// unique globally. `display` preserves the original casing (proper names).
+// A term can belong to multiple categories via VocabularyTermCategory; the
+// (termId, categoryId) pair is unique — same category can't hold duplicates.
+
+model VocabularyCategory {
+  id          String   @id @default(cuid())
+  slug        String   @unique // "prayer", "bible-characters", etc.
+  name        String // "Prayer"
+  description String?
+  icon        String? // optional emoji or short glyph shown in badges
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  terms VocabularyTermCategory[]
+
+  @@index([isActive])
+}
+
+model VocabularyTerm {
+  id              String             @id @default(cuid())
+  term            String             @unique // canonical: lowercased + trimmed
+  display         String // original casing, for UI
+  type            VocabularyTermType
+  ageAppropriate  String[]           @default([]) // subset of AgeGroup — empty means "all ages"
+  bibleRef        String? // optional citation, e.g. "Prov. 3:5"
+  useCount        Int                @default(0)
+  firstSeenPackId String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  categories    VocabularyTermCategory[]
+  packLinks     PackVocabularyLink[]
+  firstSeenPack ContentPack?             @relation("VocabularyFirstSeenPack", fields: [firstSeenPackId], references: [id], onDelete: SetNull)
+
+  @@index([type])
+  @@index([useCount])
+}
+
+// Join: many terms ↔ many categories. Compound PK enforces "no duplicates
+// within the same category" while still allowing a term to appear under
+// multiple categories.
+model VocabularyTermCategory {
+  termId     String
+  categoryId String
+  createdAt  DateTime @default(now())
+
+  term     VocabularyTerm     @relation(fields: [termId], references: [id], onDelete: Cascade)
+  category VocabularyCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([termId, categoryId])
+  @@index([categoryId])
+}
+
+// Join: many packs ↔ many terms. Tracks provenance so we know which
+// packs a term appears in and can weight game selection toward the
+// current week's material.
+model PackVocabularyLink {
+  packId    String
+  termId    String
+  createdAt DateTime @default(now())
+
+  pack ContentPack    @relation(fields: [packId], references: [id], onDelete: Cascade)
+  term VocabularyTerm @relation(fields: [termId], references: [id], onDelete: Cascade)
+
+  @@id([packId, termId])
+  @@index([termId])
+}
+
+enum VocabularyTermType {
+  WORD // single word (no spaces)
+  PHRASE // multi-word phrase
 }
 
 // ─── Enums ─────────────────────────────────────────────────────────────
@@ -369,15 +454,15 @@ enum SessionStatus {
 }
 
 enum ContentSource {
-  WATCHTOWER   // Watchtower Study article
-  OCLM         // Our Christian Life and Ministry workbook
-  DAILY_TEXT   // Daily Text (scripture + comment)
-  EVERGREEN    // General Bible content (not tied to a week)
+  WATCHTOWER // Watchtower Study article
+  OCLM // Our Christian Life and Ministry workbook
+  DAILY_TEXT // Daily Text (scripture + comment)
+  EVERGREEN // General Bible content (not tied to a week)
 }
 
 enum GameContext {
-  EVERGREEN       // Always available
-  MEETING_PREP    // Preparation for upcoming meeting
-  MEETING_LIVE    // Played during the meeting
-  DAILY           // Today's Daily Text games
+  EVERGREEN // Always available
+  MEETING_PREP // Preparation for upcoming meeting
+  MEETING_LIVE // Played during the meeting
+  DAILY // Today's Daily Text games
 }
