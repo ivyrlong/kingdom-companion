@@ -28,6 +28,7 @@ model User {
   encyclopediaCollections UserEncyclopediaCollection[]
   personalEntries         PersonalEntry[]
   dailyResponses          DailyResponse[]
+  paradisePages           ParadisePage[]
 }
 
 model Account {
@@ -465,4 +466,111 @@ enum GameContext {
   MEETING_PREP // Preparation for upcoming meeting
   MEETING_LIVE // Played during the meeting
   DAILY // Today's Daily Text games
+}
+
+// ─── Paradise Builder assets ───────────────────────────────────────────
+//
+// Characters, Stickers, and Scenes back the Paradise Builder game and
+// (later) any other place the app wants to reuse a named person or a
+// gentle landscape backdrop. Design notes:
+//
+// - Character is the durable identity ("Emma Miller"). The Sticker is
+//   one PNG of that character in one pose. A Character has 0-or-1
+//   Sticker today; later it can grow additional art (story panels,
+//   card faces) without changing the Character row.
+// - Non-people stickers (Isaiah pairs, animals, plants, homes, sky)
+//   have no Character — the Sticker row is the whole entity.
+// - Scenes are opaque background "book pages" — completely
+//   independent of Sticker; joined at composition time by the game.
+// - All image paths follow the ImageAsset convention: relative to
+//   /public, NO leading slash (e.g. "uploads/stickers/xxx.png"). The
+//   UI prefixes the slash at render time.
+
+model Character {
+  id             String   @id @default(cuid())
+  slug           String   @unique // "emma-miller"
+  name           String // "Emma Miller"
+  familyName     String? // "Miller" — null for non-family characters (future Bible-times figures)
+  role           String // "grandmother" | "grandfather" | "mother" | "father" | "teen-girl" | "teen-boy" | "child-girl" | "child-boy"
+  variant        String // "blonde" | "brunette" | "black" | "hispanic" | "asian"
+  identityPrompt String // frozen identity string from characters.md — pasted verbatim into future AI generations
+  portraitPath   String? // canonical portrait: relative to /public, no leading slash
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  sticker Sticker?
+
+  @@index([variant, role]) // for the upload UI's auto-match from filename
+  @@index([familyName])
+}
+
+model Sticker {
+  id             String      @id @default(cuid())
+  slug           String      @unique // "emma-miller", "lion-lamb", "dove"
+  name           String // display name shown in the tray: "Emma", "Lion & Lamb", "Dove"
+  kind           StickerKind
+  path           String // relative to /public, no leading slash
+  tags           String[]    @default([]) // free-form: "isaiah-11", "prayer", "harvest"
+  ageAppropriate String[]    @default([]) // subset of AgeGroup values; empty means "all ages"
+  altText        String      @default("") // screen-reader description
+  sortOrder      Int         @default(0)
+  isActive       Boolean     @default(true)
+
+  characterId String?    @unique
+  character   Character? @relation(fields: [characterId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([kind])
+  @@index([isActive])
+}
+
+enum StickerKind {
+  PERSON // linked to a Character row
+  ANIMAL_PAIR // Isaiah 11 pairs (lion + lamb, wolf + kid, ...)
+  ANIMAL_SOLO // dove, giraffe, rabbit, ...
+  PLANT // fruit tree, wildflowers, grape vine, ...
+  HOME // cottage, well, garden gate, bench, ...
+  SKY // rainbow, sun, cloud, waterfall
+}
+
+model Scene {
+  id            String   @id @default(cuid())
+  slug          String   @unique // "meadow", "lakeside", "starry-night-meadow"
+  name          String // "Sunny Meadow", "Lakeside", "Starry Night"
+  path          String // relative to /public, no leading slash
+  moodTags      String[] @default([]) // "day" | "morning" | "night" | "water" | "forest" | ...
+  paletteAccent String? // dominant color from prompt: "sky" | "violet" | ...
+  sortOrder     Int      @default(0)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  paradisePages ParadisePage[]
+
+  @@index([isActive])
+}
+
+// A user's saved paradise page. Backs the Paradise Builder game — one
+// scene per page, any number of sticker placements. Multiple pages per
+// user (a garden AND a lakeside scene, kept separately). `placements`
+// is a JSON array of Placement objects (see the paradise-builder
+// component); it isn't a foreign key relation because a single sticker
+// can appear many times on one page (stacking / overlapping is normal),
+// which the relational shape can't express cheaply.
+model ParadisePage {
+  id         String   @id @default(cuid())
+  userId     String
+  sceneId    String
+  name       String   @default("My Paradise")
+  placements Json     @default("[]") // [{id, stickerSlug, x, y, scale, zOrder}, ...]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scene Scene @relation(fields: [sceneId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@index([sceneId])
 }
