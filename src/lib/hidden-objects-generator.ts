@@ -28,6 +28,10 @@ export interface StickerLite {
   kind: StickerKindSlug;
   path: string;
   altText: string;
+  /** For PERSON stickers, the linked Character's info. When present, the
+   *  first name is used as the target label so the sidebar reads "Find
+   *  Emma" instead of "Find Blonde Mother". */
+  character?: { name: string; familyName: string | null; role: string } | null;
 }
 
 export interface Tint {
@@ -80,6 +84,15 @@ const X_MIN = 0.06;
 const X_MAX = 0.94;
 const Y_MIN = 0.10;
 const Y_MAX = 0.90;
+
+// Minimum centre-to-centre distance between any two placements, as a
+// fraction of canvas width. Below this, a later-drawn sticker can
+// completely bury the centre of an earlier one — the click hit-test
+// then never reaches the buried sticker, making it un-findable.
+// 6% is enough that every sticker keeps at least a corner or edge
+// clickable while still allowing plenty of visual overlap for camo.
+const MIN_CENTRE_DISTANCE = 0.06;
+const PLACEMENT_ATTEMPTS = 30;
 
 // ── Utils ─────────────────────────────────────────────────────────────
 
@@ -145,11 +158,12 @@ export function generatePuzzle(
     const sticker = distinctPool[i];
     const copies = slugCounts[i];
     for (let c = 0; c < copies; c++) {
+      const [x, y] = pickPosition(placements, rng);
       placements.push({
         id: makeId(rng),
         stickerSlug: sticker.slug,
-        x: Number(randRange(X_MIN, X_MAX, rng).toFixed(4)),
-        y: Number(randRange(Y_MIN, Y_MAX, rng).toFixed(4)),
+        x,
+        y,
         scale: Number(randRange(SCALE_MIN, SCALE_MAX, rng).toFixed(3)),
         rotation:
           rng() < 0.5
@@ -175,6 +189,35 @@ export function generatePuzzle(
  * Pick N distinct stickers weighted toward variety across kinds so the
  * target list reads like a natural mix (person + animal + plant + …).
  */
+/**
+ * Pick a position (x,y) that stays MIN_CENTRE_DISTANCE away from every
+ * already-placed centre. Retries up to PLACEMENT_ATTEMPTS times before
+ * giving up and accepting the last try — so a very crowded canvas
+ * gracefully degrades to random placement instead of infinite-looping.
+ */
+function pickPosition(
+  prior: readonly Placement[],
+  rng: RNG,
+): [number, number] {
+  let x = 0;
+  let y = 0;
+  for (let attempt = 0; attempt < PLACEMENT_ATTEMPTS; attempt++) {
+    x = randRange(X_MIN, X_MAX, rng);
+    y = randRange(Y_MIN, Y_MAX, rng);
+    let ok = true;
+    for (const p of prior) {
+      const dx = p.x - x;
+      const dy = p.y - y;
+      if (dx * dx + dy * dy < MIN_CENTRE_DISTANCE * MIN_CENTRE_DISTANCE) {
+        ok = false;
+        break;
+      }
+    }
+    if (ok) break;
+  }
+  return [Number(x.toFixed(4)), Number(y.toFixed(4))];
+}
+
 function pickDistinctStickers(
   pool: readonly StickerLite[],
   n: number,
@@ -236,6 +279,16 @@ function distributeCopies(slugCount: number, totalCopies: number, rng: RNG): num
   return counts;
 }
 
+/** Pretty label for the target sidebar: character first name for people,
+ *  sticker.name for everything else. Never returns "Blonde Mother" etc.
+ *  when a linked character exists. */
+function targetLabel(s: StickerLite): string {
+  if (s.kind === "PERSON" && s.character?.name) {
+    return s.character.name.split(/\s+/)[0]; // "Emma Miller" → "Emma"
+  }
+  return s.name;
+}
+
 function pickTargets(
   pool: readonly StickerLite[],
   slugCounts: readonly number[],
@@ -261,7 +314,7 @@ function pickTargets(
     const requested = Math.min(m.copies, 2 + Math.floor(rng() * 2)); // 2 or 3
     targets.push({
       slug: m.sticker.slug,
-      displayName: m.sticker.name,
+      displayName: targetLabel(m.sticker),
       requiredCount: requested,
       iconPath: m.sticker.path,
     });
@@ -277,7 +330,7 @@ function pickTargets(
     if (targets.length >= TARGET_COUNT) break;
     targets.push({
       slug: s.sticker.slug,
-      displayName: s.sticker.name,
+      displayName: targetLabel(s.sticker),
       requiredCount: 1,
       iconPath: s.sticker.path,
     });

@@ -21,6 +21,7 @@ export async function GET() {
       kind: true,
       path: true,
       altText: true,
+      character: { select: { name: true, familyName: true, role: true } },
     },
   });
   return NextResponse.json(stickers);

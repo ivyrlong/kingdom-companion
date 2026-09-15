@@ -121,18 +121,25 @@ export default function HiddenObjects() {
 
   const onPlacementTap = (placement: Placement) => {
     if (!round) return;
-    if (tappedPlacementIds.has(placement.id)) return; // already found this instance
+    if (tappedPlacementIds.has(placement.id)) return; // already cleared
     const target = round.targets.find((t) => t.slug === placement.stickerSlug);
-    const alreadyFullyFound =
-      target && (foundCounts[target.slug] ?? 0) >= target.requiredCount;
-    if (!target || alreadyFullyFound) {
+    if (!target) {
+      // Wrong slug entirely — brief red flash, sticker stays put.
       flashWrong(placement.id);
       return;
     }
-    setFoundCounts((cur) => ({
-      ...cur,
-      [target.slug]: (cur[target.slug] ?? 0) + 1,
-    }));
+    const currentCount = foundCounts[target.slug] ?? 0;
+    const stillNeeded = currentCount < target.requiredCount;
+    // Either way (still needed OR extra copy of a fully-found target),
+    // the placement clears — extras served their camouflage job and
+    // clearing them reveals whatever is behind so trickier targets
+    // become reachable.
+    if (stillNeeded) {
+      setFoundCounts((cur) => ({
+        ...cur,
+        [target.slug]: (cur[target.slug] ?? 0) + 1,
+      }));
+    }
     setTappedPlacementIds((cur) => {
       const next = new Set(cur);
       next.add(placement.id);
@@ -248,17 +255,24 @@ export default function HiddenObjects() {
           const wasFound = tappedPlacementIds.has(p.id);
           const wrongFlash = wrongFlashIds.has(p.id);
           const filter = tintToCssFilter(p.tint);
+          // Base opacity from the placement's tint, if any.
+          const baseOpacity = p.tint?.opacity ?? 1;
+          // Found placements fade to a ghost so what's underneath is
+          // both visible AND tappable (pointer-events: none on the
+          // button below achieves the click-through).
+          const displayOpacity = wasFound ? 0.15 : baseOpacity;
           return (
             <button
               key={p.id}
               onClick={() => onPlacementTap(p)}
               aria-label={s.altText || s.name}
-              className={`absolute cursor-pointer transition-transform ${
+              disabled={wasFound}
+              className={`absolute transition-opacity duration-500 ${
                 wrongFlash
                   ? "ring-4 ring-rose-500 rounded-full"
                   : wasFound
-                    ? "ring-4 ring-emerald-400 rounded-full"
-                    : ""
+                    ? "ring-2 ring-emerald-400/60 rounded-full"
+                    : "cursor-pointer"
               }`}
               style={{
                 left: `${p.x * 100}%`,
@@ -270,6 +284,7 @@ export default function HiddenObjects() {
                 background: "transparent",
                 border: "none",
                 padding: 0,
+                pointerEvents: wasFound ? "none" : undefined,
               }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -277,10 +292,10 @@ export default function HiddenObjects() {
                 src={`/${s.path}`}
                 alt=""
                 draggable={false}
-                className="w-full h-auto pointer-events-none"
+                className="w-full h-auto pointer-events-none transition-opacity duration-500"
                 style={{
                   ...(filter ? { filter } : {}),
-                  ...(p.tint?.opacity != null ? { opacity: p.tint.opacity } : {}),
+                  opacity: displayOpacity,
                 }}
               />
             </button>
