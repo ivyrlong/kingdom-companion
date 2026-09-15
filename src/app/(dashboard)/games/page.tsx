@@ -26,7 +26,7 @@ export default async function ExplorePage() {
   // Games explicitly for kids and youth only — hidden from adults even
   // though the row's ageGroup label is broader. `Game.ageGroup` today is
   // a single-value badge, not a filter, so this exclusion lives here.
-  const KID_YOUTH_ONLY_SLUGS = new Set(["paradise-builder"]);
+  const KID_YOUTH_ONLY_SLUGS = new Set(["paradise-builder", "hidden-objects"]);
   const games =
     userAgeGroup === "ADULT"
       ? allGames.filter((g) => !KID_YOUTH_ONLY_SLUGS.has(g.slug))

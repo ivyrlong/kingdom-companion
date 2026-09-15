@@ -151,6 +151,14 @@ const games = [
     ageGroup: "YOUTH" as const,
     category: "Creative",
   },
+  {
+    slug: "hidden-objects",
+    title: "Find the Hidden Things",
+    description:
+      "A new busy scene every round with things tucked in among each other. Find every item on the list — some hide, some peek, some come in twos or threes!",
+    ageGroup: "YOUTH" as const,
+    category: "Puzzle",
+  },
 ];
 
 // Starter set of vocabulary categories. Broad on purpose — 8–10 buckets
