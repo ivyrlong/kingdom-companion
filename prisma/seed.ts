@@ -72,14 +72,6 @@ const games = [
     category: "Geography",
   },
   {
-    slug: "paradise-earth-builder",
-    title: "Paradise Earth Builder",
-    description:
-      "Build and decorate a beautiful paradise scene. Place animals, plants, and homes in your ideal paradise!",
-    ageGroup: "LITTLE_ONES" as const,
-    category: "Creative",
-  },
-  {
     slug: "kingdom-hall-dash",
     title: "Kingdom Hall Dash",
     description:
