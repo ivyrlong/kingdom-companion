@@ -18,10 +18,19 @@ export default async function ExplorePage() {
   const bundle = await loadEncyclopediaBundle(userId);
 
   // Evergreen games — the always-available standalone games.
-  const games = await prisma.game.findMany({
+  const allGames = await prisma.game.findMany({
     where: { isActive: true },
     orderBy: { title: "asc" },
   });
+
+  // Games explicitly for kids and youth only — hidden from adults even
+  // though the row's ageGroup label is broader. `Game.ageGroup` today is
+  // a single-value badge, not a filter, so this exclusion lives here.
+  const KID_YOUTH_ONLY_SLUGS = new Set(["paradise-builder"]);
+  const games =
+    userAgeGroup === "ADULT"
+      ? allGames.filter((g) => !KID_YOUTH_ONLY_SLUGS.has(g.slug))
+      : allGames;
 
   const gameCards = games.map((game) => ({
     id: game.id,

@@ -151,6 +151,14 @@ const games = [
     ageGroup: "FAMILY" as const,
     category: "Puzzle",
   },
+  {
+    slug: "paradise-builder",
+    title: "Paradise Builder",
+    description:
+      "Pick a scene and add your favourite friends, animals, plants, and things to imagine what paradise will look like. Save your pages and come back to keep building.",
+    ageGroup: "YOUTH" as const,
+    category: "Creative",
+  },
 ];
 
 // Starter set of vocabulary categories. Broad on purpose — 8–10 buckets

@@ -12,6 +12,7 @@ import JigsawPuzzle from "@/components/games/JigsawPuzzle";
 import ColoringPage from "@/components/games/ColoringPage";
 import MeetingBingo from "@/components/games/MeetingBingo";
 import MeetingMaze from "@/components/games/MeetingMaze";
+import ParadiseBuilder from "@/components/games/ParadiseBuilder";
 
 export interface ContentPackData {
   vocabulary: string[];
@@ -50,6 +51,7 @@ export const GAME_COMPONENTS: Record<
   "coloring-page": ColoringPage as unknown as React.ComponentType<GameProps>,
   "meeting-bingo": MeetingBingo,
   "meeting-maze": MeetingMaze,
+  "paradise-builder": ParadiseBuilder as unknown as React.ComponentType<GameProps>,
 };
 
 /**
