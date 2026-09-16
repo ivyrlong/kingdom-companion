@@ -34,13 +34,6 @@ export interface StickerLite {
   character?: { name: string; familyName: string | null; role: string } | null;
 }
 
-export interface Tint {
-  hueRotateDeg: number; // -30..30
-  brightness: number; // 0.85..1.10
-  saturation: number; // 0.85..1.15
-  opacity: number; // 0.80..1.00
-}
-
 export interface Placement {
   id: string;
   stickerSlug: string;
@@ -48,7 +41,6 @@ export interface Placement {
   y: number; // 0..1 (centre)
   scale: number; // 0.5..1.4 (multiplier of BASE size)
   rotation?: number; // degrees, -8..8 for subtle tilt
-  tint?: Tint;
 }
 
 export interface Target {
@@ -75,9 +67,6 @@ const SCALE_MIN = 0.5;
 const SCALE_MAX = 1.4;
 
 const ROTATION_MAX_DEG = 8;
-
-const TINT_PROBABILITY = 0.55; // half the placements get tinted
-const HUE_ROTATE_MAX = 30;
 
 // Where placements can land (leave margin from edges so nothing gets clipped).
 const X_MIN = 0.06;
@@ -117,16 +106,6 @@ function shuffle<T>(arr: readonly T[], rng: RNG): T[] {
 
 function makeId(rng: RNG): string {
   return `p_${Math.floor(rng() * 1e9).toString(36)}`;
-}
-
-function maybeTint(rng: RNG): Tint | undefined {
-  if (rng() > TINT_PROBABILITY) return undefined;
-  return {
-    hueRotateDeg: Math.round(randRange(-HUE_ROTATE_MAX, HUE_ROTATE_MAX, rng)),
-    brightness: Number(randRange(0.88, 1.08, rng).toFixed(2)),
-    saturation: Number(randRange(0.85, 1.15, rng).toFixed(2)),
-    opacity: Number(randRange(0.85, 1.0, rng).toFixed(2)),
-  };
 }
 
 // ── Generator ────────────────────────────────────────────────────────
@@ -169,7 +148,6 @@ export function generatePuzzle(
           rng() < 0.5
             ? Number(randRange(-ROTATION_MAX_DEG, ROTATION_MAX_DEG, rng).toFixed(1))
             : undefined,
-        tint: maybeTint(rng),
       });
     }
   }
@@ -340,8 +318,3 @@ function pickTargets(
   return targets;
 }
 
-/** Build the CSS filter string for a placement's tint. */
-export function tintToCssFilter(tint: Tint | undefined): string | undefined {
-  if (!tint) return undefined;
-  return `hue-rotate(${tint.hueRotateDeg}deg) brightness(${tint.brightness}) saturate(${tint.saturation})`;
-}

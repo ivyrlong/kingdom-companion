@@ -21,7 +21,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   generatePuzzle,
-  tintToCssFilter,
   type Placement,
   type StickerLite,
   type Target,
@@ -254,13 +253,10 @@ export default function HiddenObjects() {
           if (!s) return null;
           const wasFound = tappedPlacementIds.has(p.id);
           const wrongFlash = wrongFlashIds.has(p.id);
-          const filter = tintToCssFilter(p.tint);
-          // Base opacity from the placement's tint, if any.
-          const baseOpacity = p.tint?.opacity ?? 1;
           // Found placements fade to a ghost so what's underneath is
           // both visible AND tappable (pointer-events: none on the
           // button below achieves the click-through).
-          const displayOpacity = wasFound ? 0.15 : baseOpacity;
+          const displayOpacity = wasFound ? 0.15 : 1;
           return (
             <button
               key={p.id}
@@ -293,10 +289,7 @@ export default function HiddenObjects() {
                 alt=""
                 draggable={false}
                 className="w-full h-auto pointer-events-none transition-opacity duration-500"
-                style={{
-                  ...(filter ? { filter } : {}),
-                  opacity: displayOpacity,
-                }}
+                style={{ opacity: displayOpacity }}
               />
             </button>
           );
