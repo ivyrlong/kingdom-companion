@@ -276,23 +276,22 @@ function PartRow({
         </div>
       )}
 
-      {part.aiContent && (
-        <PartAiBlock ai={part.aiContent} ageGroup={ageGroup} />
-      )}
-
       {/*
-        Fill-in-the-blank exercise seeded from the AI kid summary.
-        Little Ones already get the summary read aloud in the panel
-        above; Youth and Adult get the interactive version here so
-        they can turn the summary into a memory exercise.
+        Per-age split of the AI insights:
+        - Adult:  kidSummary + family discussion question (static text)
+        - Youth + Little Ones: interactive fill-in-the-blank of the
+          kidSummary — same content, but you have to place the words
+          instead of just reading them. Family Q is hidden for these
+          tiers (it's meant for adult-led family worship).
       */}
-      {part.aiContent && !isLittle && (
+      {part.aiContent && ageGroup === "ADULT" && (
+        <PartAiBlock ai={part.aiContent} />
+      )}
+      {part.aiContent && ageGroup !== "ADULT" && part.aiContent.kidSummary && (
         <FillInBlankCard
           storageKey={`oclm-fitb:${packId}:${partKey(packId, part, idx)}`}
           text={part.aiContent.kidSummary}
-          vocabulary={[
-            ...part.aiContent.listeningPhrases,
-          ]}
+          vocabulary={[...part.aiContent.listeningPhrases]}
         />
       )}
 
@@ -326,58 +325,32 @@ function PartRow({
 }
 
 /**
- * Per-audience AI insights block. Rendered above the generic scaffold
- * so week-specific content takes visual precedence — but the scaffold
- * still shows underneath as a stable framework.
+ * Adult-only AI insights block: the kid-friendly summary of what the
+ * part is about, plus one open-ended question the family can use in
+ * dinner conversation or family worship.
  *
- *   Little Ones → the kid summary + the phrases they'll hear.
- *   Youth       → the family discussion question + phrases as chips.
- *   Adult       → both the summary and the family discussion question.
+ * Youth and Little Ones don't render this — they get the interactive
+ * fill-in-blank version of the summary elsewhere, and the family Q is
+ * intentionally an adult-led conversation starter rather than another
+ * question the kids answer.
+ *
+ * The per-part listening chips that used to live here are gone — the
+ * pack-level "Listen for these" card at the top of the panel holds a
+ * meeting-wide, capped-at-five set of words a Little One can actually
+ * track.
  */
-function PartAiBlock({
-  ai,
-  ageGroup,
-}: {
-  ai: NonNullable<WorkbookPart["aiContent"]>;
-  ageGroup: string;
-}) {
-  const isLittle = ageGroup === "LITTLE_ONES";
-
+function PartAiBlock({ ai }: { ai: NonNullable<WorkbookPart["aiContent"]> }) {
   return (
     <div className="mt-2 rounded-lg border border-sky-200 dark:border-sky-900/40 bg-sky-50/70 dark:bg-sky-900/10 px-3 py-2">
       <p className="text-[10px] uppercase tracking-wide text-sky-700 dark:text-sky-300 font-semibold flex items-center gap-1">
         <span aria-hidden>✨</span> This week
       </p>
-
-      {isLittle ? (
-        <p className="mt-1 text-sm text-sky-900 dark:text-sky-100 leading-snug">
-          {ai.kidSummary}
-        </p>
-      ) : (
-        <>
-          {ageGroup === "ADULT" && (
-            <p className="mt-1 text-sm text-sky-900 dark:text-sky-100 leading-snug">
-              {ai.kidSummary}
-            </p>
-          )}
-          <p className="mt-1 text-sm italic text-sky-800 dark:text-sky-200">
-            💬 {ai.familyDiscussionQuestion}
-          </p>
-        </>
-      )}
-
-      {ai.listeningPhrases.length > 0 && (
-        <div className="mt-1.5 flex flex-wrap gap-1">
-          {ai.listeningPhrases.map((p, i) => (
-            <span
-              key={i}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-white dark:bg-zinc-900 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-900/40"
-            >
-              <span aria-hidden>👂</span> {p}
-            </span>
-          ))}
-        </div>
-      )}
+      <p className="mt-1 text-sm text-sky-900 dark:text-sky-100 leading-snug">
+        {ai.kidSummary}
+      </p>
+      <p className="mt-1 text-sm italic text-sky-800 dark:text-sky-200">
+        💬 {ai.familyDiscussionQuestion}
+      </p>
     </div>
   );
 }
@@ -425,11 +398,10 @@ function PartScaffoldBlock({
 
 // ── Little Ones listening card ────────────────────────────────────────
 
-function ListeningCard({ vocabulary }: { vocabulary: string[] }) {
-  const picks = useMemo(() => vocabulary.slice(0, 6), [vocabulary]);
+function ListeningCard({ words }: { words: string[] }) {
   const [hits, setHits] = useState<Set<string>>(new Set());
 
-  if (picks.length === 0) return null;
+  if (words.length === 0) return null;
 
   return (
     <div className="rounded-2xl border-2 border-coral-200 dark:border-coral-900/40 bg-coral-50 dark:bg-coral-900/10 p-4">
@@ -440,7 +412,7 @@ function ListeningCard({ vocabulary }: { vocabulary: string[] }) {
         Tap a word when you hear it during the meeting.
       </p>
       <div className="flex flex-wrap gap-2">
-        {picks.map((w) => {
+        {words.map((w) => {
           const on = hits.has(w);
           return (
             <button
@@ -466,6 +438,42 @@ function ListeningCard({ vocabulary }: { vocabulary: string[] }) {
       </div>
     </div>
   );
+}
+
+/**
+ * Collapse every part's AI listeningPhrases into one pack-level word
+ * set: dedupe case-insensitively, sort by how many parts each word
+ * appears in (most-repeated first), cap at `max`. Falls back to the
+ * pack's overall `vocabulary` slice when no AI words exist (unimported
+ * or old pack with no insights generated).
+ *
+ * Cap is 5 because a Little One can plausibly track that many; more
+ * turns the game into an unwinnable search.
+ */
+function aggregateListeningWords(
+  sections: WorkbookSection[],
+  fallback: string[],
+  max: number,
+): string[] {
+  const counts = new Map<string, number>(); // lowercase key → count
+  const display = new Map<string, string>(); // lowercase key → first-seen casing
+  for (const s of sections) {
+    for (const p of s.parts) {
+      for (const w of p.aiContent?.listeningPhrases ?? []) {
+        const key = w.toLowerCase().trim();
+        if (!key || /\s/.test(key)) continue; // enforce single-word
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+        if (!display.has(key)) display.set(key, w.trim());
+      }
+    }
+  }
+  if (counts.size > 0) {
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, max)
+      .map(([key]) => display.get(key)!);
+  }
+  return fallback.slice(0, max);
 }
 
 // ── Panel ─────────────────────────────────────────────────────────────
@@ -578,7 +586,11 @@ export default function WorkbookPanel({
       </div>
 
       {/* Little Ones get a focused listening card up top */}
-      {isLittle && <ListeningCard vocabulary={vocabulary} />}
+      {isLittle && (
+        <ListeningCard
+          words={aggregateListeningWords(sections, vocabulary, 5)}
+        />
+      )}
 
       {/* Section + part rows */}
       <div className="space-y-4">

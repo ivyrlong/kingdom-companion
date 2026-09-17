@@ -37,8 +37,12 @@ export interface AiPartInsights {
   /** One question a family could use around dinner or family worship. */
   familyDiscussionQuestion: string;
   /**
-   * 3–5 phrases likely to be spoken during this part at the meeting —
-   * concrete enough to seed a Little Ones "tap when you hear" card.
+   * 1–3 SINGLE WORDS likely to be repeated during this part — proper
+   * names or key terms that come up more than once in the paragraph.
+   * Feeds a pack-level "listen for these" card capped at 5 words for
+   * the whole meeting, so per-part contribution is deliberately small.
+   * Historical name (was "phrases"); kept as string[] for compatibility
+   * with already-generated packs.
    */
   listeningPhrases: string[];
 }
@@ -183,10 +187,10 @@ const PART_SCHEMA = {
     listeningPhrases: {
       type: "array",
       items: { type: "string" },
-      minItems: 3,
-      maxItems: 5,
+      minItems: 1,
+      maxItems: 3,
       description:
-        "3–5 short phrases (2–5 words each) that a child could plausibly hear said aloud during this meeting part. Concrete nouns, verbs, or Bible-character names actually present in the paragraph text — not generic vocabulary. Used to seed a listening game.",
+        "1–3 SINGLE WORDS a young child could listen for during this part. Pick words that (a) actually appear in the paragraph text and (b) are either PROPER NAMES (Jehovah, Jesus, a Bible character's name, a place name) or KEY TERMS repeated more than once in the paragraph. Concrete, easy for a 4–7 year old to say and recognise. NO phrases, NO articles, NO verbs alone. Each entry is exactly one word (no spaces).",
     },
   },
   required: ["kidSummary", "familyDiscussionQuestion", "listeningPhrases"],
@@ -253,10 +257,17 @@ async function generateOne(
       !parsed.kidSummary ||
       !parsed.familyDiscussionQuestion ||
       !Array.isArray(parsed.listeningPhrases) ||
-      parsed.listeningPhrases.length < 3
+      parsed.listeningPhrases.length < 1
     ) {
       return null;
     }
+    // Enforce "single word" contract post-hoc — trim, collapse whitespace,
+    // and drop anything with an internal space. Prevents an old-shape
+    // response from polluting the pack-level cap.
+    parsed.listeningPhrases = parsed.listeningPhrases
+      .map((w) => (typeof w === "string" ? w.trim().replace(/\s+/g, " ") : ""))
+      .filter((w) => w.length > 0 && !/\s/.test(w));
+    if (parsed.listeningPhrases.length === 0) return null;
     return parsed;
   } catch (err) {
     console.error(
@@ -513,13 +524,14 @@ export async function buildPromptForPack(
 For EACH of the ${matched.length} meeting parts below, produce three outputs:
   1. kidSummary — 2 sentences for a 4–7 year old (≤240 chars). Concrete. Not a moral. Names a person or event a child would remember.
   2. familyDiscussionQuestion — one open-ended question a family could talk over at dinner or worship (≤200 chars). Tied to THIS part's actual point.
-  3. listeningPhrases — 3–5 short phrases (2–5 words each) that a child could plausibly hear said aloud during THIS part. Use concrete nouns / names / verbs actually present in the paragraph text — not generic vocabulary.
+  3. listeningPhrases — 1–3 SINGLE WORDS (no spaces) a young child could listen for during THIS part. Pick words that actually appear in the paragraph AND are either PROPER NAMES (Jehovah, Jesus, a Bible character or place) OR terms REPEATED more than once. Each entry is one word — no phrases, no articles, no lone verbs.
+     The whole meeting is capped at 5 listening words for a Little One to track, so per-part contribution is deliberately small — 1 word for lighter parts, 2–3 only when the part clearly repeats several key terms.
 
 Return ONE JSON object, no code fences, no commentary, with this exact shape:
 {
   "entries": [
-    { "id": "TREASURES:1", "kidSummary": "...", "familyDiscussionQuestion": "...", "listeningPhrases": ["...", "..."] },
-    { "id": "TREASURES:2", "kidSummary": "...", "familyDiscussionQuestion": "...", "listeningPhrases": ["...", "..."] }
+    { "id": "TREASURES:1", "kidSummary": "...", "familyDiscussionQuestion": "...", "listeningPhrases": ["Jehovah", "Isaiah"] },
+    { "id": "TREASURES:2", "kidSummary": "...", "familyDiscussionQuestion": "...", "listeningPhrases": ["prayer"] }
     // one entry per part, matching the ids listed below
   ]
 }
@@ -596,14 +608,24 @@ export async function applyPastedInsights(
     const listeningPhrases = Array.isArray(r.listeningPhrases)
       ? r.listeningPhrases.filter((x): x is string => typeof x === "string")
       : [];
-    if (!id || !kidSummary || !familyDiscussionQuestion || listeningPhrases.length < 3) {
+    if (!id || !kidSummary || !familyDiscussionQuestion || listeningPhrases.length < 1) {
       continue;
     }
+    // Enforce single-word contract — drop entries with spaces so a stray
+    // multi-word phrase doesn't leak into the LO listening card.
+    const cleanWords = listeningPhrases
+      .map((w) => w.trim().replace(/\s+/g, " "))
+      .filter((w) => w.length > 0 && !/\s/.test(w));
+    if (cleanWords.length === 0) continue;
     if (!expected.has(id)) {
       unmatchedIds.push(id);
       continue;
     }
-    insightsById.set(id, { kidSummary, familyDiscussionQuestion, listeningPhrases });
+    insightsById.set(id, {
+      kidSummary,
+      familyDiscussionQuestion,
+      listeningPhrases: cleanWords,
+    });
   }
 
   // Merge into sections/parts (immutable — deep copy so caller can save).
