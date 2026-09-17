@@ -13,8 +13,9 @@ peach `#FFA56B` · cream base `#FAF8F6` · ink `#3C3F4A`
 
 **Content rules baked in:** no crosses (use an upright stake or lamb/sheep for
 sacrifice themes), no halos, no holiday imagery, original characters only (never
-Caleb & Sophia or any branded likeness), Jehovah/Jesus never depicted
-(silhouettes only). Hangman deliberately has **no gallows/noose**.
+Caleb & Sophia or any branded likeness), Jehovah never depicted (Jesus is fine
+to depict — JW publications include him regularly). Hangman deliberately has
+**no gallows/noose**.
 
 **Recommended output:** ≥1024px long edge, landscape ~2:1 (matches the card's
 image area), then let the UI scale it down. Upload via **Admin → Game Images**.

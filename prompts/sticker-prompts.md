@@ -30,7 +30,8 @@ peach `#FFA56B` · cream `#FAF8F6` · ink `#3C3F4A`
 - **No crosses, halos, or holiday imagery.** Use lambs/sheep for sacrifice themes.
 - **No branded characters** (Caleb & Sophia, Disney, Pixar, etc.) — original
   characters only.
-- **No depictions of Jehovah or Jesus.**
+- **No depictions of Jehovah.** Jesus can be depicted (as a warm young man in
+  Bible-era attire) — JW publications include him regularly.
 - **Diverse skin tones and hair colors** across the People set — no group looks
   like a single family.
 
