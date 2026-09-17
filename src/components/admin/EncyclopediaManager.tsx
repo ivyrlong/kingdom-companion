@@ -15,6 +15,13 @@ interface EncyclopediaEntry {
   triggers: string[];
   ageGroup: string;
   isActive: boolean;
+  // Rich fields — present on JSON-imported entries. The old simple
+  // form editor doesn't touch these; use "Edit as JSON" to modify.
+  era?: string | null;
+  timeline?: unknown;
+  locations?: string[];
+  contentByTier?: unknown;
+  stickerId?: string | null;
 }
 
 interface ImageAsset {
@@ -69,6 +76,38 @@ export default function EncyclopediaManager() {
   const [error, setError] = useState("");
   const [editing, setEditing] = useState<EncyclopediaEntry | null>(null);
   const [creating, setCreating] = useState(false);
+  // Import textarea contents lifted here so "Edit as JSON" on any entry
+  // card can populate it with that entry's current rich data. Round-
+  // trips via the same POST /api/admin/encyclopedia/import endpoint
+  // (upsert by slug).
+  const [importPaste, setImportPaste] = useState("");
+
+  const editAsJson = useCallback((entry: EncyclopediaEntry) => {
+    const shape: Record<string, unknown> = {
+      slug: entry.slug,
+      name: entry.term,
+      category: entry.category,
+      bibleRef: entry.bibleRef,
+      ageGroup: entry.ageGroup,
+      isActive: entry.isActive,
+      triggers: entry.triggers,
+    };
+    if (entry.era != null) shape.era = entry.era;
+    if (entry.timeline != null) shape.timeline = entry.timeline;
+    if (entry.locations && entry.locations.length > 0) {
+      shape.locations = entry.locations;
+    }
+    if (entry.contentByTier != null) shape.content = entry.contentByTier;
+    // Keep the plain definition too so simple entries round-trip
+    // faithfully. Rich entries can drop it since contentByTier is the
+    // canonical source.
+    if (!entry.contentByTier) shape.definition = entry.definition;
+    setImportPaste(JSON.stringify(shape, null, 2));
+    // Nudge the page to the top so the textarea is in view.
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, []);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -162,7 +201,11 @@ export default function EncyclopediaManager() {
         </div>
       )}
 
-      <JsonImporter onImported={fetchAll} />
+      <JsonImporter
+        value={importPaste}
+        onChange={setImportPaste}
+        onImported={fetchAll}
+      />
 
       <div className="flex items-center justify-between">
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
@@ -236,12 +279,19 @@ export default function EncyclopediaManager() {
                     </span>
                   )}
                 </div>
-                <div className="flex gap-3">
+                <div className="flex gap-3 flex-wrap">
                   <button
                     onClick={() => setEditing(entry)}
                     className="text-xs text-coral-600 hover:text-coral-700 dark:text-coral-400 dark:hover:text-coral-300"
                   >
                     Edit
+                  </button>
+                  <button
+                    onClick={() => editAsJson(entry)}
+                    className="text-xs text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
+                    title="Loads the entry's full data into the JSON importer at the top. Edit + hit Import to save."
+                  >
+                    Edit as JSON
                   </button>
                   <button
                     onClick={() => handleDelete(entry.id)}
@@ -629,8 +679,22 @@ interface ImportSummary {
  * Both routes go through /api/admin/encyclopedia/import — same
  * validation, same upsert-by-slug, same auto-link to matching Sticker.
  */
-function JsonImporter({ onImported }: { onImported: () => void }) {
-  const [pasted, setPasted] = useState("");
+function JsonImporter({
+  value,
+  onChange,
+  onImported,
+}: {
+  value?: string;
+  onChange?: (v: string) => void;
+  onImported: () => void;
+}) {
+  // Controlled if the parent supplies value + onChange; else self-owned.
+  const [inner, setInner] = useState("");
+  const pasted = value ?? inner;
+  const setPasted = (v: string) => {
+    if (onChange) onChange(v);
+    else setInner(v);
+  };
   const [busy, setBusy] = useState(false);
   const [summary, setSummary] = useState<ImportSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
