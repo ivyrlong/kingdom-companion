@@ -474,16 +474,47 @@ export default function MyEncyclopedia({
           {visibleItems.map((item) => {
             if (!isCollected(item)) {
               const lk = LOCKED[item.category] ?? LOCKED.THINGS;
+              // When we have a linked-sticker or imageUrl, render the
+              // actual sticker as a silhouette — brightness(0) collapses
+              // the RGB channels to black but PNG alpha is preserved, so
+              // the character shape is visible in solid dark. Falls back
+              // to a plain "?" tile for entries with no art yet.
+              const silhouetteSrc = item.imageUrl
+                ? item.imageUrl.startsWith("/")
+                  ? item.imageUrl
+                  : `/${item.imageUrl}`
+                : null;
               return (
                 <div
                   key={item.id}
                   title="Keep playing to find this one!"
-                  className={`aspect-square rounded-2xl border-2 border-dashed flex flex-col items-center justify-center text-center px-2 select-none ${lk.ring}`}
+                  className={`relative aspect-square rounded-2xl border-2 border-dashed flex flex-col items-center justify-center text-center px-2 select-none overflow-hidden ${lk.ring}`}
                 >
-                  <span className="text-4xl font-black opacity-60">?</span>
-                  <span className="text-[10px] mt-1 font-semibold">
-                    {lk.label}
-                  </span>
+                  {silhouetteSrc ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={silhouetteSrc}
+                        alt=""
+                        aria-hidden
+                        className="absolute inset-2 max-w-[calc(100%-1rem)] max-h-[calc(100%-1rem)] w-auto h-auto m-auto object-contain opacity-40"
+                        style={{ filter: "brightness(0)" }}
+                      />
+                      <span className="relative text-4xl font-black opacity-70 drop-shadow-sm">
+                        ?
+                      </span>
+                      <span className="relative text-[10px] mt-1 font-semibold">
+                        {lk.label}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-4xl font-black opacity-60">?</span>
+                      <span className="text-[10px] mt-1 font-semibold">
+                        {lk.label}
+                      </span>
+                    </>
+                  )}
                 </div>
               );
             }
