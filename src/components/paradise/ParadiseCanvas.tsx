@@ -27,7 +27,14 @@ interface StickerLite {
   id: string;
   slug: string;
   name: string;
-  kind: "PERSON" | "ANIMAL_PAIR" | "ANIMAL_SOLO" | "PLANT" | "HOME" | "SKY";
+  kind:
+    | "PERSON"
+    | "BIBLE_CHARACTER"
+    | "ANIMAL_PAIR"
+    | "ANIMAL_SOLO"
+    | "PLANT"
+    | "HOME"
+    | "SKY";
   path: string;
   altText: string;
 }
@@ -50,6 +57,7 @@ const AUTOSAVE_MS = 1500;
 const KIND_TABS: { kind: StickerLite["kind"] | "ALL"; label: string }[] = [
   { kind: "ALL", label: "All" },
   { kind: "PERSON", label: "People" },
+  { kind: "BIBLE_CHARACTER", label: "Bible Characters" },
   { kind: "ANIMAL_PAIR", label: "Isaiah Pairs" },
   { kind: "ANIMAL_SOLO", label: "Animals" },
   { kind: "PLANT", label: "Plants" },

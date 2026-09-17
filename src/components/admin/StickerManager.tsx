@@ -58,7 +58,8 @@ interface Staged {
 }
 
 const KIND_OPTIONS: { value: StickerKindSlug; label: string }[] = [
-  { value: "PERSON", label: "Person" },
+  { value: "PERSON", label: "Person (modern family)" },
+  { value: "BIBLE_CHARACTER", label: "Bible character" },
   { value: "ANIMAL_PAIR", label: "Animal pair (Isaiah)" },
   { value: "ANIMAL_SOLO", label: "Animal (solo)" },
   { value: "PLANT", label: "Plant / fruit" },

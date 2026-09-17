@@ -18,6 +18,7 @@
 
 export type StickerKindSlug =
   | "PERSON"
+  | "BIBLE_CHARACTER"
   | "ANIMAL_PAIR"
   | "ANIMAL_SOLO"
   | "PLANT"
@@ -107,6 +108,18 @@ export function guessStickerFromFilename(
         subject,
         variant,
         role,
+        suggestedName: toTitleCase(subject),
+        suggestedSlug: subject,
+      };
+    }
+    case "bible": {
+      // sticker-bible-<slug>.png — Bible character (Moses, Ruth, David, ...).
+      // Slug is the character's name in kebab-case; may contain hyphens
+      // (e.g. "john-the-baptizer").
+      const subject = rest.join("-");
+      return {
+        kind: "BIBLE_CHARACTER",
+        subject,
         suggestedName: toTitleCase(subject),
         suggestedSlug: subject,
       };

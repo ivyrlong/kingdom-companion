@@ -16,6 +16,7 @@
 
 export type StickerKindSlug =
   | "PERSON"
+  | "BIBLE_CHARACTER"
   | "ANIMAL_PAIR"
   | "ANIMAL_SOLO"
   | "PLANT"

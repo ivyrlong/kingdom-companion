@@ -527,7 +527,8 @@ model Sticker {
 }
 
 enum StickerKind {
-  PERSON // linked to a Character row
+  PERSON // modern family persona linked to a Character row
+  BIBLE_CHARACTER // historical figure — Moses, Ruth, David, ... Later linked to a BibleCharacter row.
   ANIMAL_PAIR // Isaiah 11 pairs (lion + lamb, wolf + kid, ...)
   ANIMAL_SOLO // dove, giraffe, rabbit, ...
   PLANT // fruit tree, wildflowers, grape vine, ...
