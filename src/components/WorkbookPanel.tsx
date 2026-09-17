@@ -493,6 +493,13 @@ export default function WorkbookPanel({
 }: Props) {
   const isLittle = ageGroup === "LITTLE_ONES";
 
+  // Hide the CLOSING / Concluding Comments section from every tier —
+  // it's a single "closing song + prayer" line in the workbook and adds
+  // no per-week signal for kids or adults. Filtering it here also
+  // keeps its parts out of the listening-word aggregate and the
+  // Meeting-Live auto-collect below.
+  const visibleSections = sections.filter((s) => s.kind !== "CLOSING");
+
   // Auto-collect: on entry to Meeting Live for this pack, POST every
   // token we can plausibly match against a curated Encyclopedia entry
   // (vocabulary + workbook part titles + AI listening phrases). Runs
@@ -506,7 +513,7 @@ export default function WorkbookPanel({
 
     const tokens: string[] = [
       ...vocabulary,
-      ...sections.flatMap((s) =>
+      ...visibleSections.flatMap((s) =>
         s.parts.flatMap((p) => [
           p.title,
           ...(p.aiContent?.listeningPhrases ?? []),
@@ -539,7 +546,7 @@ export default function WorkbookPanel({
     return () => {
       cancelled = true;
     };
-  }, [live, packId, vocabulary, sections]);
+  }, [live, packId, vocabulary, visibleSections]);
 
   return (
     <section className="space-y-5 mb-8">
@@ -588,13 +595,13 @@ export default function WorkbookPanel({
       {/* Little Ones get a focused listening card up top */}
       {isLittle && (
         <ListeningCard
-          words={aggregateListeningWords(sections, vocabulary, 5)}
+          words={aggregateListeningWords(visibleSections, vocabulary, 5)}
         />
       )}
 
       {/* Section + part rows */}
       <div className="space-y-4">
-        {sections.map((s, si) => (
+        {visibleSections.map((s, si) => (
           <div key={si}>
             <div
               className={`px-4 py-2 rounded-lg bg-gradient-to-r font-semibold text-sm flex items-center gap-2 ${SECTION_TONE[s.kind]}`}
