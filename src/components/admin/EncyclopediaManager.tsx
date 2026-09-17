@@ -162,6 +162,8 @@ export default function EncyclopediaManager() {
         </div>
       )}
 
+      <JsonImporter onImported={fetchAll} />
+
       <div className="flex items-center justify-between">
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
           {entries.length} {entries.length === 1 ? "entry" : "entries"}
@@ -595,6 +597,194 @@ function ImagePickerModal({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/* ── JSON importer ─────────────────────────────────────────────────── */
+
+interface ImportResult {
+  slug: string;
+  status: "created" | "updated" | "skipped" | "error";
+  linkedStickerSlug?: string;
+  message?: string;
+}
+
+interface ImportSummary {
+  total: number;
+  created: number;
+  updated: number;
+  unlinked: number;
+  errors: number;
+  results: ImportResult[];
+}
+
+/**
+ * Bulk drop-in for encyclopedia JSON files. Accepts one or many files at
+ * a time; each file is parsed client-side, sent as a batch to
+ * /api/admin/encyclopedia/import, and results are shown per-slug. Both
+ * the simple shape ({slug, term, definition}) and the rich Bible-
+ * character shape ({slug, name, content: {littleOnes, youth, adult}})
+ * are accepted server-side — the client just uploads whatever's in the
+ * files.
+ */
+function JsonImporter({ onImported }: { onImported: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [summary, setSummary] = useState<ImportSummary | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+
+  const handleFiles = async (files: FileList | File[]) => {
+    setBusy(true);
+    setError(null);
+    setSummary(null);
+    try {
+      // Read each file, parse, and collect entries. One file may contain
+      // a single entry object OR an array of entries OR an { entries: [] }
+      // wrapper — normalise to a flat list before posting.
+      const entries: unknown[] = [];
+      for (const file of Array.from(files)) {
+        if (!file.name.toLowerCase().endsWith(".json")) continue;
+        const text = await file.text();
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(text);
+        } catch (e) {
+          setError(
+            `${file.name}: not valid JSON — ${e instanceof Error ? e.message : "parse error"}`,
+          );
+          setBusy(false);
+          return;
+        }
+        if (Array.isArray(parsed)) {
+          entries.push(...parsed);
+        } else if (
+          parsed &&
+          typeof parsed === "object" &&
+          Array.isArray((parsed as Record<string, unknown>).entries)
+        ) {
+          entries.push(...((parsed as { entries: unknown[] }).entries));
+        } else {
+          entries.push(parsed);
+        }
+      }
+      if (entries.length === 0) {
+        setError("No JSON files found in the drop.");
+        setBusy(false);
+        return;
+      }
+
+      const res = await fetch("/api/admin/encyclopedia/import", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ entries }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body?.error ?? `HTTP ${res.status}`);
+        setBusy(false);
+        return;
+      }
+      const body = (await res.json()) as ImportSummary;
+      setSummary(body);
+      onImported();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "network error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4">
+      <div className="flex items-baseline justify-between mb-2">
+        <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
+          📥 Import JSON
+        </h3>
+        <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+          Drop <code>.json</code> from <code>prompts/encyclopedia/</code> — upserts by slug, auto-links to matching sticker.
+        </p>
+      </div>
+      <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragOver(true);
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragOver(false);
+          if (e.dataTransfer.files.length > 0) void handleFiles(e.dataTransfer.files);
+        }}
+        className={`relative border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition ${
+          dragOver
+            ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20"
+            : "border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900/40 hover:bg-zinc-100 dark:hover:bg-zinc-900/60"
+        }`}
+      >
+        <label className="block cursor-pointer">
+          <input
+            type="file"
+            multiple
+            accept="application/json,.json"
+            className="hidden"
+            onChange={(e) => e.target.files && handleFiles(e.target.files)}
+          />
+          <p className="text-sm text-zinc-700 dark:text-zinc-200 font-medium">
+            {busy ? "Uploading…" : "Drop JSON files here, or click to browse"}
+          </p>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+            Accepts a single object, an array, or {"{ entries: [...] }"}. Rich
+            content (contentByTier / timeline / locations / era) and simple
+            entries both fine.
+          </p>
+        </label>
+      </div>
+
+      {error && (
+        <p className="mt-2 text-sm text-rose-600 dark:text-rose-400">{error}</p>
+      )}
+
+      {summary && (
+        <div className="mt-3 space-y-2">
+          <p className="text-sm text-zinc-700 dark:text-zinc-200">
+            <span className="font-medium text-emerald-700 dark:text-emerald-400">
+              ✓ {summary.created} created
+            </span>
+            {" · "}
+            <span className="font-medium text-sky-700 dark:text-sky-400">
+              {summary.updated} updated
+            </span>
+            {summary.unlinked > 0 && (
+              <>
+                {" · "}
+                <span className="text-amber-700 dark:text-amber-400">
+                  {summary.unlinked} without linked sticker
+                </span>
+              </>
+            )}
+            {summary.errors > 0 && (
+              <>
+                {" · "}
+                <span className="text-rose-700 dark:text-rose-400">
+                  {summary.errors} errors
+                </span>
+              </>
+            )}
+          </p>
+          {summary.results.filter((r) => r.status === "error").length > 0 && (
+            <ul className="text-xs text-rose-600 dark:text-rose-400 space-y-0.5">
+              {summary.results
+                .filter((r) => r.status === "error")
+                .map((r) => (
+                  <li key={r.slug}>
+                    <code>{r.slug}</code>: {r.message}
+                  </li>
+                ))}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }
