@@ -675,12 +675,18 @@ export default function WorkbookPanel({
       {/* Save button — study mode only. All entry saves already flush to
           localStorage on every keystroke, so this button is a mode toggle
           more than a persistence action: "I'm done preparing, show me the
-          finished guide for the meeting." Wording matches that intent. */}
+          finished guide for the meeting."
+          Sticky so it stays reachable while the family scrolls through
+          the study — glued to the viewport bottom until the panel scrolls
+          out into the games section below, at which point it rolls off
+          naturally with its container. `pointer-events-none` on the
+          wrapper so clicks pass through around the button back to
+          whatever text is behind it. */}
       {modeLoaded && !live && (
-        <div className="flex justify-center pt-2">
+        <div className="sticky bottom-3 z-20 flex justify-center pointer-events-none">
           <button
             onClick={() => switchMode("live")}
-            className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold shadow-sm transition"
+            className="pointer-events-auto px-6 py-3 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold shadow-2xl ring-1 ring-emerald-700/20 transition"
           >
             💾 Save study guide
           </button>
