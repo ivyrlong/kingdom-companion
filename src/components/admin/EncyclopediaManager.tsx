@@ -620,60 +620,50 @@ interface ImportSummary {
 }
 
 /**
- * Bulk drop-in for encyclopedia JSON files. Accepts one or many files at
- * a time; each file is parsed client-side, sent as a batch to
- * /api/admin/encyclopedia/import, and results are shown per-slug. Both
- * the simple shape ({slug, term, definition}) and the rich Bible-
- * character shape ({slug, name, content: {littleOnes, youth, adult}})
- * are accepted server-side — the client just uploads whatever's in the
- * files.
+ * Encyclopedia JSON importer. Two ways in — pick whichever's less
+ * friction for the moment:
+ *   1. Paste the JSON straight from your AI tool into the textarea and
+ *      hit Import. One entry, an array, or {entries: [...]} all fine.
+ *   2. Drop one or many .json files into the file zone.
+ *
+ * Both routes go through /api/admin/encyclopedia/import — same
+ * validation, same upsert-by-slug, same auto-link to matching Sticker.
  */
 function JsonImporter({ onImported }: { onImported: () => void }) {
+  const [pasted, setPasted] = useState("");
   const [busy, setBusy] = useState(false);
   const [summary, setSummary] = useState<ImportSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
 
-  const handleFiles = async (files: FileList | File[]) => {
+  // Normalise whatever the user gave us (raw string OR file contents)
+  // into a flat list of entry objects to POST. Accepts single object,
+  // array, or {entries: [...]}.
+  const collectEntries = (text: string): unknown[] | { error: string } => {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch (e) {
+      return {
+        error: `Not valid JSON — ${e instanceof Error ? e.message : "parse error"}`,
+      };
+    }
+    if (Array.isArray(parsed)) return parsed;
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      Array.isArray((parsed as Record<string, unknown>).entries)
+    ) {
+      return (parsed as { entries: unknown[] }).entries;
+    }
+    return [parsed];
+  };
+
+  const postEntries = async (entries: unknown[]) => {
     setBusy(true);
     setError(null);
     setSummary(null);
     try {
-      // Read each file, parse, and collect entries. One file may contain
-      // a single entry object OR an array of entries OR an { entries: [] }
-      // wrapper — normalise to a flat list before posting.
-      const entries: unknown[] = [];
-      for (const file of Array.from(files)) {
-        if (!file.name.toLowerCase().endsWith(".json")) continue;
-        const text = await file.text();
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(text);
-        } catch (e) {
-          setError(
-            `${file.name}: not valid JSON — ${e instanceof Error ? e.message : "parse error"}`,
-          );
-          setBusy(false);
-          return;
-        }
-        if (Array.isArray(parsed)) {
-          entries.push(...parsed);
-        } else if (
-          parsed &&
-          typeof parsed === "object" &&
-          Array.isArray((parsed as Record<string, unknown>).entries)
-        ) {
-          entries.push(...((parsed as { entries: unknown[] }).entries));
-        } else {
-          entries.push(parsed);
-        }
-      }
-      if (entries.length === 0) {
-        setError("No JSON files found in the drop.");
-        setBusy(false);
-        return;
-      }
-
       const res = await fetch("/api/admin/encyclopedia/import", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -682,17 +672,52 @@ function JsonImporter({ onImported }: { onImported: () => void }) {
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         setError(body?.error ?? `HTTP ${res.status}`);
-        setBusy(false);
         return;
       }
       const body = (await res.json()) as ImportSummary;
       setSummary(body);
       onImported();
+      if (body.created + body.updated > 0 && body.errors === 0) {
+        setPasted(""); // clear the textarea on a fully-clean success
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "network error");
     } finally {
       setBusy(false);
     }
+  };
+
+  const handlePasteImport = () => {
+    const text = pasted.trim();
+    if (!text) {
+      setError("Paste some JSON first.");
+      return;
+    }
+    const entries = collectEntries(text);
+    if ("error" in entries) {
+      setError(entries.error);
+      return;
+    }
+    void postEntries(entries);
+  };
+
+  const handleFiles = async (files: FileList | File[]) => {
+    const entries: unknown[] = [];
+    for (const file of Array.from(files)) {
+      if (!file.name.toLowerCase().endsWith(".json")) continue;
+      const text = await file.text();
+      const collected = collectEntries(text);
+      if ("error" in collected) {
+        setError(`${file.name}: ${collected.error}`);
+        return;
+      }
+      entries.push(...collected);
+    }
+    if (entries.length === 0) {
+      setError("No JSON files found in the drop.");
+      return;
+    }
+    void postEntries(entries);
   };
 
   return (
@@ -702,44 +727,79 @@ function JsonImporter({ onImported }: { onImported: () => void }) {
           📥 Import JSON
         </h3>
         <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-          Drop <code>.json</code> from <code>prompts/encyclopedia/</code> — upserts by slug, auto-links to matching sticker.
+          Upserts by slug · auto-links to matching sticker
         </p>
       </div>
-      <div
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDragOver(true);
-        }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragOver(false);
-          if (e.dataTransfer.files.length > 0) void handleFiles(e.dataTransfer.files);
-        }}
-        className={`relative border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition ${
-          dragOver
-            ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20"
-            : "border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900/40 hover:bg-zinc-100 dark:hover:bg-zinc-900/60"
-        }`}
-      >
-        <label className="block cursor-pointer">
-          <input
-            type="file"
-            multiple
-            accept="application/json,.json"
-            className="hidden"
-            onChange={(e) => e.target.files && handleFiles(e.target.files)}
-          />
-          <p className="text-sm text-zinc-700 dark:text-zinc-200 font-medium">
-            {busy ? "Uploading…" : "Drop JSON files here, or click to browse"}
-          </p>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-            Accepts a single object, an array, or {"{ entries: [...] }"}. Rich
-            content (contentByTier / timeline / locations / era) and simple
-            entries both fine.
-          </p>
-        </label>
+
+      {/* Primary path: paste — usually one character at a time straight
+          from an AI chat. */}
+      <div>
+        <textarea
+          value={pasted}
+          onChange={(e) => setPasted(e.target.value)}
+          placeholder='Paste one JSON object, an array, or { "entries": [ ... ] }'
+          rows={8}
+          className="w-full font-mono text-xs px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-zinc-800 dark:text-zinc-100 resize-y"
+        />
+        <div className="mt-2 flex items-center gap-3">
+          <button
+            onClick={handlePasteImport}
+            disabled={busy || !pasted.trim()}
+            className="px-4 py-1.5 text-sm font-medium rounded-md bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-40"
+          >
+            {busy ? "Importing…" : "Import"}
+          </button>
+          <button
+            onClick={() => {
+              setPasted("");
+              setSummary(null);
+              setError(null);
+            }}
+            disabled={busy || (!pasted && !summary && !error)}
+            className="text-xs text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 disabled:opacity-30"
+          >
+            Clear
+          </button>
+        </div>
       </div>
+
+      {/* Secondary path: drop .json files (for bulk re-imports from
+          prompts/encyclopedia/). */}
+      <details className="mt-3">
+        <summary className="text-xs text-zinc-500 dark:text-zinc-400 cursor-pointer select-none">
+          Or drop .json files (bulk import)
+        </summary>
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragOver(false);
+            if (e.dataTransfer.files.length > 0) void handleFiles(e.dataTransfer.files);
+          }}
+          className={`mt-2 border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition ${
+            dragOver
+              ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20"
+              : "border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900/40 hover:bg-zinc-100 dark:hover:bg-zinc-900/60"
+          }`}
+        >
+          <label className="block cursor-pointer">
+            <input
+              type="file"
+              multiple
+              accept="application/json,.json"
+              className="hidden"
+              onChange={(e) => e.target.files && handleFiles(e.target.files)}
+            />
+            <p className="text-sm text-zinc-700 dark:text-zinc-200 font-medium">
+              {busy ? "Uploading…" : "Drop JSON files here, or click to browse"}
+            </p>
+          </label>
+        </div>
+      </details>
 
       {error && (
         <p className="mt-2 text-sm text-rose-600 dark:text-rose-400">{error}</p>
