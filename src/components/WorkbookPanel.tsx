@@ -77,8 +77,6 @@ interface Props {
   vocabulary: string[];
   attribution: string | null;
   sourceUrl: string | null;
-  /** When true, render in Meeting-Live mode: read-only notes, agenda focus. */
-  live: boolean;
 }
 
 // ── Section presentation ──────────────────────────────────────────────
@@ -488,9 +486,51 @@ export default function WorkbookPanel({
   vocabulary,
   attribution,
   sourceUrl,
-  live,
 }: Props) {
   const isLittle = ageGroup === "LITTLE_ONES";
+
+  // ── Self-managed study ↔ live mode ────────────────────────────────
+  // Default: if any prep artefacts already exist in localStorage for
+  // this pack (part notes or worksheet answers), land in live mode so
+  // the family opens the page and sees their finished study guide.
+  // Otherwise start in study mode so they can prep. Explicit user
+  // choices (Save / Edit) win and persist per-pack.
+  const modeKey = `oclm-mode:${packId}`;
+  const [mode, setMode] = useState<"study" | "live">("study");
+  const [modeLoaded, setModeLoaded] = useState(false);
+  useEffect(() => {
+    try {
+      const explicit = window.localStorage.getItem(modeKey);
+      if (explicit === "live" || explicit === "study") {
+        setMode(explicit);
+        setModeLoaded(true);
+        return;
+      }
+      const notePrefix = `oclm-note:${packId}:`;
+      const fitbPrefix = `oclm-fitb:${packId}:`;
+      for (let i = 0; i < window.localStorage.length; i++) {
+        const k = window.localStorage.key(i);
+        if (k && (k.startsWith(notePrefix) || k.startsWith(fitbPrefix))) {
+          setMode("live");
+          break;
+        }
+      }
+    } catch {
+      // localStorage may be unavailable — stay on the default "study".
+    }
+    setModeLoaded(true);
+  }, [packId, modeKey]);
+
+  const switchMode = (m: "study" | "live") => {
+    setMode(m);
+    try {
+      window.localStorage.setItem(modeKey, m);
+    } catch {
+      // ignore
+    }
+  };
+
+  const live = mode === "live";
 
   // Hide the OPENING and CLOSING sections from every tier (bookend song
   // + prayer, no study signal), and also strip any `song` part that
@@ -574,6 +614,14 @@ export default function WorkbookPanel({
               Meeting Live
             </span>
           )}
+          {modeLoaded && live && (
+            <button
+              onClick={() => switchMode("study")}
+              className="ml-auto text-xs font-medium px-3 py-1 rounded-full bg-white dark:bg-zinc-800 text-coral-700 dark:text-coral-300 border border-coral-300 dark:border-coral-800 hover:bg-coral-50 dark:hover:bg-coral-950/40 transition"
+            >
+              ✏️ Edit my study guide
+            </button>
+          )}
         </div>
         <div className="mt-2 flex flex-wrap gap-2 text-xs">
           {bibleReadingRange && (
@@ -623,6 +671,21 @@ export default function WorkbookPanel({
           </div>
         ))}
       </div>
+
+      {/* Save button — study mode only. All entry saves already flush to
+          localStorage on every keystroke, so this button is a mode toggle
+          more than a persistence action: "I'm done preparing, show me the
+          finished guide for the meeting." Wording matches that intent. */}
+      {modeLoaded && !live && (
+        <div className="flex justify-center pt-2">
+          <button
+            onClick={() => switchMode("live")}
+            className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold shadow-sm transition"
+          >
+            💾 Save study guide
+          </button>
+        </div>
+      )}
 
       {attribution && (
         <p className="text-[10px] text-zinc-400 dark:text-zinc-600 italic">

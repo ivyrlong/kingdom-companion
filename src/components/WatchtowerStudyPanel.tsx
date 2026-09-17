@@ -57,8 +57,6 @@ export interface WatchtowerStudyPanelProps {
   scriptures?: Array<{ reference: string; text: string }>;
   /** Prep answers keyed by question index, so Meeting Live resumes them. */
   savedResponses: Record<number, SavedStudyResponse>;
-  /** When true the panel is shown in the live-meeting tab. */
-  live?: boolean;
   /** Pre-formatted attribution line for the pack, e.g.
    *  "Based on 'Show Insight…', The Watchtower 2026 No. 4. © Watch Tower." */
   attribution?: string | null;
@@ -381,6 +379,36 @@ export default function WatchtowerStudyPanel(
   const isYouth =
     props.ageGroup === "YOUTH" || props.ageGroup === "FAMILY";
 
+  // Self-managed study ↔ live mode (same pattern as WorkbookPanel).
+  // Default: if any prep answers already exist for this pack, land in
+  // live mode so the family opens straight to their finished study.
+  // Explicit Save / Edit choices win and persist per-pack.
+  const modeKey = `wt-mode:${props.packId}`;
+  const [mode, setMode] = useState<"study" | "live">("study");
+  const [modeLoaded, setModeLoaded] = useState(false);
+  useEffect(() => {
+    try {
+      const explicit = window.localStorage.getItem(modeKey);
+      if (explicit === "live" || explicit === "study") {
+        setMode(explicit);
+      } else if (Object.keys(props.savedResponses).length > 0) {
+        setMode("live");
+      }
+    } catch {
+      // localStorage unavailable — stay on default "study".
+    }
+    setModeLoaded(true);
+  }, [modeKey, props.savedResponses]);
+  const switchMode = (m: "study" | "live") => {
+    setMode(m);
+    try {
+      window.localStorage.setItem(modeKey, m);
+    } catch {
+      // ignore
+    }
+  };
+  const live = mode === "live";
+
   // Little Ones only ever see questions an admin wrote a Simplified answer
   // for — everything else is automatically hidden (no adult-answer fallback).
   const questions = isLittle
@@ -415,19 +443,29 @@ export default function WatchtowerStudyPanel(
   return (
     <section className="mb-8">
       <Confetti active={celebrating} duration={1500} count={60} />
-      <div className="flex items-baseline justify-between gap-3 mb-3">
+      <div className="flex items-baseline justify-between gap-3 mb-3 flex-wrap">
         <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">
           {isLittle
             ? "Watchtower Story Time"
-            : props.live
+            : live
               ? "Your Watchtower comments"
               : "Watchtower Study"}
         </h2>
-        {props.live && (
-          <span className="text-xs font-medium text-violet-600 dark:text-violet-300">
-            Your prepared answers are loaded
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {live && (
+            <span className="text-xs font-medium text-violet-600 dark:text-violet-300">
+              Your prepared answers are loaded
+            </span>
+          )}
+          {modeLoaded && live && (
+            <button
+              onClick={() => switchMode("study")}
+              className="text-xs font-medium px-3 py-1 rounded-full bg-white dark:bg-zinc-800 text-coral-700 dark:text-coral-300 border border-coral-300 dark:border-coral-800 hover:bg-coral-50 dark:hover:bg-coral-950/40 transition"
+            >
+              ✏️ Edit my study guide
+            </button>
+          )}
+        </div>
       </div>
 
       {isLittle ? (
@@ -467,7 +505,7 @@ export default function WatchtowerStudyPanel(
                     allAnswers={questions.map((x) => x.answer)}
                     packScriptures={props.scriptures ?? []}
                     saved={props.savedResponses[i]}
-                    live={props.live}
+                    live={live}
                   />
                 ) : (
                   <AdultQuestion
@@ -476,7 +514,7 @@ export default function WatchtowerStudyPanel(
                     q={q}
                     packScriptures={props.scriptures ?? []}
                     saved={props.savedResponses[i]}
-                    live={props.live}
+                    live={live}
                   />
                 )}
               </div>
@@ -507,6 +545,20 @@ export default function WatchtowerStudyPanel(
               Next →
             </button>
           </div>
+
+          {/* Save = mode toggle. Every input already persists per keystroke;
+              hitting Save just switches the panel to the read-only Meeting
+              Live view. Study mode only. */}
+          {modeLoaded && !live && (
+            <div className="flex justify-center pt-4">
+              <button
+                onClick={() => switchMode("live")}
+                className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold shadow-sm transition"
+              >
+                💾 Save study guide
+              </button>
+            </div>
+          )}
 
           <AttributionFooter
             attribution={props.attribution}
