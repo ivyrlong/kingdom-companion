@@ -484,7 +484,6 @@ export default function WorkbookPanel({
   title,
   bibleReadingRange,
   bibleReadingAssignment,
-  songs,
   sections,
   vocabulary,
   attribution,
@@ -493,12 +492,18 @@ export default function WorkbookPanel({
 }: Props) {
   const isLittle = ageGroup === "LITTLE_ONES";
 
-  // Hide the CLOSING / Concluding Comments section from every tier —
-  // it's a single "closing song + prayer" line in the workbook and adds
-  // no per-week signal for kids or adults. Filtering it here also
-  // keeps its parts out of the listening-word aggregate and the
-  // Meeting-Live auto-collect below.
-  const visibleSections = sections.filter((s) => s.kind !== "CLOSING");
+  // Hide the OPENING and CLOSING sections from every tier (bookend song
+  // + prayer, no study signal), and also strip any `song` part that
+  // lives inside a study section (typically the mid-meeting song between
+  // MINISTRY and LIVING). Filtering here keeps these out of the
+  // listening-word aggregate and the Meeting Live auto-collect below.
+  const visibleSections = sections
+    .filter((s) => s.kind !== "OPENING" && s.kind !== "CLOSING")
+    .map((s) => ({
+      ...s,
+      parts: s.parts.filter((p) => p.kind !== "song"),
+    }))
+    .filter((s) => s.parts.length > 0);
 
   // Auto-collect: on entry to Meeting Live for this pack, POST every
   // token we can plausibly match against a curated Encyclopedia entry
@@ -581,14 +586,8 @@ export default function WorkbookPanel({
               🎙 Student: {bibleReadingAssignment.reference}
             </span>
           )}
-          {songs.map((n, i) => (
-            <span
-              key={i}
-              className="px-2.5 py-1 rounded-lg bg-violet-100 dark:bg-violet-900/30 text-violet-800 dark:text-violet-200"
-            >
-              ♪ Song {n}
-            </span>
-          ))}
+          {/* Song chips intentionally hidden from every tier — the workbook's
+              opening/closing songs aren't part of the study focus here. */}
         </div>
       </div>
 
