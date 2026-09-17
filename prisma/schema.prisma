@@ -256,20 +256,44 @@ model EncyclopediaEntry {
   id         String               @id @default(cuid())
   slug       String               @unique // canonical lowercase, e.g. "ark"
   term       String // display name, e.g. "Ark"
-  definition String // 1–2 sentence kid-friendly definition
-  imageUrl   String? // path to image (from /public/uploads/...)
+  definition String // 1–2 sentence kid-friendly definition — fallback when contentByTier is null
+  imageUrl   String? // path to image (from /public/uploads/...); used when no linked sticker
   bibleRef   String? // optional, e.g. "Genesis 6:14"
   category   EncyclopediaCategory @default(THINGS)
   triggers   Json                 @default("[]") // string[] — alternate slugs/keywords that trigger discovery
-  ageGroup   AgeGroup             @default(LITTLE_ONES)
+  ageGroup   AgeGroup             @default(LITTLE_ONES) // informational label; NOT a gate — every entry is available to every viewer, content adapts to age via `contentByTier`
   isActive   Boolean              @default(true)
   createdAt  DateTime             @default(now())
   updatedAt  DateTime             @updatedAt
+
+  // ── Richer per-entry fields (all optional) ────────────────────────
+  // Populated by the Bible-character extraction pipeline; plain entries
+  // (uploaded via the older admin flow) leave these null and the app
+  // falls back to `definition`.
+
+  /// Era tag for people/events (e.g. "Patriarchs", "Kings", "Gospels").
+  era           String?
+  /// Ordered timeline for people/events: [{ when, event }, ...].
+  timeline      Json?
+  /// Place names associated with a person/event.
+  locations     String[] @default([])
+  /// Three-tier language content — same shape per tier: shortDescription,
+  /// longBlurb, trivia?, cluesHardToEasy?. Games and pages pick the tier
+  /// matching the viewer's ageGroup; FAMILY viewers default to youth.
+  contentByTier Json?
+
+  /// Optional 1:1 link to a Sticker. When present, the sticker acts as
+  /// the entry's portrait AND the collectable art unlocked when the
+  /// user discovers this entry. Only BIBLE_CHARACTER-kind stickers are
+  /// currently linked this way, but the FK is generic.
+  stickerId String?  @unique
+  sticker   Sticker? @relation("EncyclopediaSticker", fields: [stickerId], references: [id], onDelete: SetNull)
 
   collections UserEncyclopediaCollection[]
 
   @@index([ageGroup])
   @@index([isActive])
+  @@index([category])
 }
 
 // UserEncyclopediaCollection = which entries each user has collected, and where.
@@ -518,6 +542,10 @@ model Sticker {
 
   characterId String?    @unique
   character   Character? @relation(fields: [characterId], references: [id], onDelete: SetNull)
+
+  /// Reverse side of the EncyclopediaEntry.sticker 1:1 relation. When
+  /// present, this sticker is the collectable art for that entry.
+  encyclopediaEntry EncyclopediaEntry? @relation("EncyclopediaSticker")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
