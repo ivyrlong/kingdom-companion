@@ -32,6 +32,14 @@ interface ImageAsset {
   categories: string[];
 }
 
+interface StickerOption {
+  id: string;
+  slug: string;
+  name: string;
+  kind: string;
+  path: string;
+}
+
 const CATEGORIES = ["PEOPLE", "PLACES", "THINGS", "EVENTS"] as const;
 const CATEGORY_LABELS: Record<string, string> = {
   PEOPLE: "People",
@@ -72,6 +80,7 @@ const EMPTY_ENTRY: Omit<EncyclopediaEntry, "id"> = {
 export default function EncyclopediaManager() {
   const [entries, setEntries] = useState<EncyclopediaEntry[]>([]);
   const [images, setImages] = useState<ImageAsset[]>([]);
+  const [stickers, setStickers] = useState<StickerOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState<EncyclopediaEntry | null>(null);
@@ -113,9 +122,10 @@ export default function EncyclopediaManager() {
     setLoading(true);
     setError("");
     try {
-      const [entriesRes, imagesRes] = await Promise.all([
+      const [entriesRes, imagesRes, stickersRes] = await Promise.all([
         fetch("/api/admin/encyclopedia"),
         fetch("/api/admin/images"),
+        fetch("/api/admin/stickers"),
       ]);
       if (entriesRes.ok) {
         setEntries(await entriesRes.json());
@@ -124,6 +134,9 @@ export default function EncyclopediaManager() {
       }
       if (imagesRes.ok) {
         setImages(await imagesRes.json());
+      }
+      if (stickersRes.ok) {
+        setStickers(await stickersRes.json());
       }
     } catch {
       setError("Failed to load entries.");
@@ -310,6 +323,7 @@ export default function EncyclopediaManager() {
         <EntryEditor
           initial={editing ?? { ...EMPTY_ENTRY }}
           images={images}
+          stickers={stickers}
           onCancel={() => {
             setEditing(null);
             setCreating(false);
@@ -326,11 +340,13 @@ export default function EncyclopediaManager() {
 function EntryEditor({
   initial,
   images,
+  stickers,
   onCancel,
   onSave,
 }: {
   initial: EncyclopediaEntry | Omit<EncyclopediaEntry, "id">;
   images: ImageAsset[];
+  stickers: StickerOption[];
   onCancel: () => void;
   onSave: (entry: EncyclopediaEntry | (Omit<EncyclopediaEntry, "id"> & { id?: string })) => Promise<boolean>;
 }) {
@@ -345,6 +361,26 @@ function EntryEditor({
   const [imagePickerOpen, setImagePickerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // ── Rich fields (all optional; expand via <details> when needed) ────
+  const initContent = (initial.contentByTier ?? {}) as ContentByTier;
+  const [era, setEra] = useState<string>(initial.era ?? "");
+  const [stickerId, setStickerId] = useState<string>(initial.stickerId ?? "");
+  const [locationsList, setLocationsList] = useState<string[]>(
+    Array.isArray(initial.locations) ? [...initial.locations] : [],
+  );
+  const [timeline, setTimeline] = useState<TimelineItem[]>(
+    Array.isArray(initial.timeline) ? [...(initial.timeline as TimelineItem[])] : [],
+  );
+  const [littleOnes, setLittleOnes] = useState<TierContentDraft>(
+    initTierDraft(initContent.littleOnes),
+  );
+  const [youth, setYouth] = useState<TierContentDraft>(
+    initTierDraft(initContent.youth),
+  );
+  const [adult, setAdult] = useState<TierContentDraft>(
+    initTierDraft(initContent.adult),
+  );
+
   // Auto-generate slug from term if user hasn't customized it
   const handleTermChange = (value: string) => {
     setTerm(value);
@@ -358,6 +394,25 @@ function EntryEditor({
     if (!term.trim() || !slug.trim() || !definition.trim()) return;
     setSaving(true);
     const triggers = triggersStr.split(",").map((t) => t.trim()).filter(Boolean);
+    // Collapse the three tier drafts back into contentByTier only if
+    // ANY tier has content — otherwise null so the entry stays "simple".
+    const rawContent: ContentByTier = {
+      littleOnes: tierDraftToPayload(littleOnes),
+      youth: tierDraftToPayload(youth),
+      adult: tierDraftToPayload(adult),
+    };
+    const anyTierContent =
+      Object.keys(rawContent.littleOnes ?? {}).length > 0 ||
+      Object.keys(rawContent.youth ?? {}).length > 0 ||
+      Object.keys(rawContent.adult ?? {}).length > 0;
+    const contentByTier = anyTierContent
+      ? Object.fromEntries(
+          Object.entries(rawContent).filter(
+            ([, v]) => v && Object.keys(v).length > 0,
+          ),
+        )
+      : null;
+
     const payload = {
       ...("id" in initial ? { id: initial.id } : {}),
       term: term.trim(),
@@ -369,6 +424,11 @@ function EntryEditor({
       triggers,
       ageGroup: "LITTLE_ONES" as const,
       isActive,
+      era: era.trim() || null,
+      timeline: timeline.length > 0 ? timeline : null,
+      locations: locationsList,
+      contentByTier,
+      stickerId: stickerId || null,
     };
     const ok = await onSave(payload);
     setSaving(false);
@@ -553,6 +613,93 @@ function EntryEditor({
                 Active (visible to children)
               </span>
             </label>
+
+            {/* ── Sticker link (BIBLE_CHARACTER + others) ────────── */}
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                Linked sticker <span className="text-zinc-400">(collectable art)</span>
+              </label>
+              <select
+                value={stickerId}
+                onChange={(e) => setStickerId(e.target.value)}
+                className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100"
+              >
+                <option value="">— none —</option>
+                {stickers
+                  .filter((s) => s.kind === "BIBLE_CHARACTER")
+                  .map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.slug})
+                    </option>
+                  ))}
+              </select>
+              <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">
+                Only Bible-character stickers listed. When linked, the sticker
+                becomes the entry&apos;s portrait and unlocks as a collectable
+                once the child discovers this entry.
+              </p>
+            </div>
+
+            {/* ── Era + Locations (Bible-character style entries) ── */}
+            <details className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-3">
+              <summary className="cursor-pointer text-sm font-semibold text-zinc-800 dark:text-zinc-100">
+                🕰 Era &amp; locations
+              </summary>
+              <div className="mt-3 space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+                    Era
+                  </label>
+                  <input
+                    type="text"
+                    value={era}
+                    onChange={(e) => setEra(e.target.value)}
+                    placeholder='e.g. "Patriarchs", "Kings", "Gospels"'
+                    className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm"
+                  />
+                </div>
+                <StringListEditor
+                  label="Locations"
+                  values={locationsList}
+                  onChange={setLocationsList}
+                  placeholder="e.g. Egypt"
+                />
+              </div>
+            </details>
+
+            {/* ── Timeline ─────────────────────────────────────── */}
+            <details className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-3">
+              <summary className="cursor-pointer text-sm font-semibold text-zinc-800 dark:text-zinc-100">
+                📜 Timeline ({timeline.length})
+              </summary>
+              <div className="mt-3">
+                <TimelineEditor values={timeline} onChange={setTimeline} />
+              </div>
+            </details>
+
+            {/* ── Per-tier content (Little Ones / Youth / Adult) ─── */}
+            {(
+              [
+                ["littleOnes", "🧸 Little Ones content", littleOnes, setLittleOnes],
+                ["youth", "🌱 Youth content", youth, setYouth],
+                ["adult", "📖 Adult content", adult, setAdult],
+              ] as const
+            ).map(([key, label, tier, setTier]) => (
+              <details
+                key={key}
+                className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-3"
+              >
+                <summary className="cursor-pointer text-sm font-semibold text-zinc-800 dark:text-zinc-100">
+                  {label}
+                  <span className="text-zinc-400 font-normal ml-2 text-xs">
+                    ({tier.trivia.length} trivia · {tier.cluesHardToEasy.length} clues)
+                  </span>
+                </summary>
+                <div className="mt-3">
+                  <TierContentEditor tier={tier} onChange={setTier} />
+                </div>
+              </details>
+            ))}
           </div>
 
           {/* Actions */}
@@ -909,6 +1056,344 @@ function JsonImporter({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ── Rich-content editors ─────────────────────────────────────────── */
+
+interface TimelineItem {
+  when: string;
+  event: string;
+}
+
+interface TriviaItem {
+  question: string;
+  answer: string;
+  bibleRef?: string;
+  source?: "rewritten" | "derived";
+}
+
+interface TierContentDraft {
+  shortDescription: string;
+  longBlurb: string;
+  trivia: TriviaItem[];
+  cluesHardToEasy: string[];
+}
+
+interface ContentByTier {
+  littleOnes?: Partial<TierContentDraft>;
+  youth?: Partial<TierContentDraft>;
+  adult?: Partial<TierContentDraft>;
+}
+
+function initTierDraft(source: Partial<TierContentDraft> | undefined): TierContentDraft {
+  return {
+    shortDescription: source?.shortDescription ?? "",
+    longBlurb: source?.longBlurb ?? "",
+    trivia: Array.isArray(source?.trivia) ? [...(source!.trivia as TriviaItem[])] : [],
+    cluesHardToEasy: Array.isArray(source?.cluesHardToEasy)
+      ? [...(source!.cluesHardToEasy as string[])]
+      : [],
+  };
+}
+
+function tierDraftToPayload(d: TierContentDraft): Partial<TierContentDraft> | undefined {
+  const out: Partial<TierContentDraft> = {};
+  const sd = d.shortDescription.trim();
+  const lb = d.longBlurb.trim();
+  if (sd) out.shortDescription = sd;
+  if (lb) out.longBlurb = lb;
+  const trivia = d.trivia
+    .map((t) => ({
+      question: t.question.trim(),
+      answer: t.answer.trim(),
+      bibleRef: t.bibleRef?.trim() || undefined,
+      source: t.source,
+    }))
+    .filter((t) => t.question && t.answer);
+  if (trivia.length > 0) out.trivia = trivia;
+  const clues = d.cluesHardToEasy.map((c) => c.trim()).filter(Boolean);
+  if (clues.length > 0) out.cluesHardToEasy = clues;
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function StringListEditor({
+  label,
+  values,
+  onChange,
+  placeholder,
+  ordered,
+}: {
+  label: string;
+  values: string[];
+  onChange: (next: string[]) => void;
+  placeholder?: string;
+  ordered?: boolean;
+}) {
+  const update = (i: number, v: string) => {
+    const next = values.slice();
+    next[i] = v;
+    onChange(next);
+  };
+  const add = () => onChange([...values, ""]);
+  const remove = (i: number) => onChange(values.filter((_, idx) => idx !== i));
+  const move = (i: number, dir: -1 | 1) => {
+    const j = i + dir;
+    if (j < 0 || j >= values.length) return;
+    const next = values.slice();
+    [next[i], next[j]] = [next[j], next[i]];
+    onChange(next);
+  };
+  return (
+    <div>
+      <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+        {label}
+      </label>
+      <div className="space-y-1.5">
+        {values.map((v, i) => (
+          <div key={i} className="flex items-center gap-1">
+            {ordered && (
+              <span className="w-6 text-xs text-zinc-400 text-right">{i + 1}.</span>
+            )}
+            <input
+              type="text"
+              value={v}
+              onChange={(e) => update(i, e.target.value)}
+              placeholder={placeholder}
+              className="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1 text-sm text-zinc-900 dark:text-zinc-100"
+            />
+            {ordered && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => move(i, -1)}
+                  disabled={i === 0}
+                  className="text-xs text-zinc-400 hover:text-zinc-700 disabled:opacity-30 px-1"
+                  aria-label="Move up"
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  onClick={() => move(i, 1)}
+                  disabled={i === values.length - 1}
+                  className="text-xs text-zinc-400 hover:text-zinc-700 disabled:opacity-30 px-1"
+                  aria-label="Move down"
+                >
+                  ↓
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() => remove(i)}
+              className="text-xs text-zinc-400 hover:text-rose-600 px-1"
+              aria-label="Remove"
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={add}
+        className="mt-1.5 text-xs font-medium text-emerald-600 hover:text-emerald-700 dark:text-emerald-400"
+      >
+        + Add
+      </button>
+    </div>
+  );
+}
+
+function TimelineEditor({
+  values,
+  onChange,
+}: {
+  values: TimelineItem[];
+  onChange: (next: TimelineItem[]) => void;
+}) {
+  const update = (i: number, patch: Partial<TimelineItem>) => {
+    const next = values.slice();
+    next[i] = { ...next[i], ...patch };
+    onChange(next);
+  };
+  const add = () => onChange([...values, { when: "", event: "" }]);
+  const remove = (i: number) => onChange(values.filter((_, idx) => idx !== i));
+  return (
+    <div>
+      <div className="space-y-2">
+        {values.map((t, i) => (
+          <div key={i} className="flex items-start gap-2">
+            <input
+              type="text"
+              value={t.when}
+              onChange={(e) => update(i, { when: e.target.value })}
+              placeholder="c. 1593 BCE or Later"
+              className="w-40 flex-shrink-0 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1 text-sm"
+            />
+            <input
+              type="text"
+              value={t.event}
+              onChange={(e) => update(i, { event: e.target.value })}
+              placeholder="What happened, in your own words"
+              className="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1 text-sm"
+            />
+            <button
+              type="button"
+              onClick={() => remove(i)}
+              className="text-xs text-zinc-400 hover:text-rose-600 px-1 pt-1.5"
+              aria-label="Remove event"
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={add}
+        className="mt-2 text-xs font-medium text-emerald-600 hover:text-emerald-700 dark:text-emerald-400"
+      >
+        + Add event
+      </button>
+    </div>
+  );
+}
+
+function TriviaEditor({
+  values,
+  onChange,
+}: {
+  values: TriviaItem[];
+  onChange: (next: TriviaItem[]) => void;
+}) {
+  const update = (i: number, patch: Partial<TriviaItem>) => {
+    const next = values.slice();
+    next[i] = { ...next[i], ...patch };
+    onChange(next);
+  };
+  const add = () =>
+    onChange([...values, { question: "", answer: "", source: "derived" }]);
+  const remove = (i: number) => onChange(values.filter((_, idx) => idx !== i));
+  return (
+    <div>
+      <div className="space-y-2">
+        {values.map((t, i) => (
+          <div
+            key={i}
+            className="rounded-md border border-zinc-200 dark:border-zinc-800 p-2 bg-zinc-50 dark:bg-zinc-900/40"
+          >
+            <div className="flex items-baseline gap-2 mb-1">
+              <span className="text-xs text-zinc-400">#{i + 1}</span>
+              <select
+                value={t.source ?? "derived"}
+                onChange={(e) =>
+                  update(i, {
+                    source: e.target.value as "rewritten" | "derived",
+                  })
+                }
+                className="text-[11px] rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-1 py-0.5"
+              >
+                <option value="rewritten">rewritten</option>
+                <option value="derived">derived</option>
+              </select>
+              <button
+                type="button"
+                onClick={() => remove(i)}
+                className="ml-auto text-xs text-zinc-400 hover:text-rose-600"
+              >
+                ✕ remove
+              </button>
+            </div>
+            <input
+              type="text"
+              value={t.question}
+              onChange={(e) => update(i, { question: e.target.value })}
+              placeholder="Question"
+              className="w-full mb-1 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1 text-sm"
+            />
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={t.answer}
+                onChange={(e) => update(i, { answer: e.target.value })}
+                placeholder="Answer"
+                className="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1 text-sm"
+              />
+              <input
+                type="text"
+                value={t.bibleRef ?? ""}
+                onChange={(e) => update(i, { bibleRef: e.target.value })}
+                placeholder="Ref (optional)"
+                className="w-32 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1 text-sm"
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={add}
+        className="mt-2 text-xs font-medium text-emerald-600 hover:text-emerald-700 dark:text-emerald-400"
+      >
+        + Add question
+      </button>
+    </div>
+  );
+}
+
+function TierContentEditor({
+  tier,
+  onChange,
+}: {
+  tier: TierContentDraft;
+  onChange: (next: TierContentDraft) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+          Short description
+        </label>
+        <textarea
+          value={tier.shortDescription}
+          onChange={(e) => onChange({ ...tier, shortDescription: e.target.value })}
+          rows={2}
+          maxLength={500}
+          placeholder="1-2 sentences at this age's reading level"
+          className="w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1.5 text-sm"
+        />
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+          Long blurb
+        </label>
+        <textarea
+          value={tier.longBlurb}
+          onChange={(e) => onChange({ ...tier, longBlurb: e.target.value })}
+          rows={4}
+          placeholder="Full paragraph"
+          className="w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1.5 text-sm"
+        />
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+          Trivia ({tier.trivia.length})
+        </label>
+        <TriviaEditor
+          values={tier.trivia}
+          onChange={(v) => onChange({ ...tier, trivia: v })}
+        />
+      </div>
+      <StringListEditor
+        label={`Clues (hardest to easiest, ${tier.cluesHardToEasy.length})`}
+        values={tier.cluesHardToEasy}
+        onChange={(v) => onChange({ ...tier, cluesHardToEasy: v })}
+        placeholder="I ..."
+        ordered
+      />
     </div>
   );
 }

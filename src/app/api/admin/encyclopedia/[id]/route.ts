@@ -1,10 +1,40 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 const VALID_CATEGORIES = ["PEOPLE", "PLACES", "THINGS", "EVENTS"] as const;
 const VALID_AGE_GROUPS = ["LITTLE_ONES", "YOUTH", "ADULT", "FAMILY"] as const;
+
+const timelineItemSchema = z.object({
+  when: z.string(),
+  event: z.string(),
+});
+
+const triviaItemSchema = z.object({
+  question: z.string(),
+  answer: z.string(),
+  bibleRef: z.string().optional(),
+  source: z.enum(["rewritten", "derived"]).optional(),
+});
+
+const tierSchema = z
+  .object({
+    shortDescription: z.string().max(500).optional(),
+    longBlurb: z.string().max(2000).optional(),
+    trivia: z.array(triviaItemSchema).optional(),
+    cluesHardToEasy: z.array(z.string()).max(10).optional(),
+  })
+  .strict();
+
+const contentByTierSchema = z
+  .object({
+    littleOnes: tierSchema.optional(),
+    youth: tierSchema.optional(),
+    adult: tierSchema.optional(),
+  })
+  .strict();
 
 const updateSchema = z.object({
   slug: z.string().min(1).max(80).optional(),
@@ -16,6 +46,12 @@ const updateSchema = z.object({
   triggers: z.array(z.string()).optional(),
   ageGroup: z.enum(VALID_AGE_GROUPS).optional(),
   isActive: z.boolean().optional(),
+  // Rich fields — nullable so form can explicitly clear.
+  era: z.string().nullable().optional(),
+  timeline: z.array(timelineItemSchema).nullable().optional(),
+  locations: z.array(z.string()).optional(),
+  contentByTier: contentByTierSchema.nullable().optional(),
+  stickerId: z.string().nullable().optional(),
 });
 
 async function authorize() {
@@ -62,12 +98,42 @@ export async function PATCH(
     );
   }
 
-  const data = { ...parsed.data };
-  if (data.slug) {
+  const { timeline, contentByTier, stickerId, ...rest } = parsed.data;
+  const data: Prisma.EncyclopediaEntryUpdateInput = { ...rest };
+  if (data.slug && typeof data.slug === "string") {
     data.slug = data.slug.toLowerCase().trim().replace(/\s+/g, "-");
   }
-  if (data.triggers) {
-    data.triggers = data.triggers.map((t) => t.toLowerCase().trim()).filter(Boolean);
+  if (rest.triggers) {
+    data.triggers = rest.triggers.map((t) => t.toLowerCase().trim()).filter(Boolean);
+  }
+  // Nullable JSON columns need Prisma.DbNull (SQL NULL) instead of JS
+  // null. Undefined means "don't touch this column" — the form leaves
+  // it out when the user is only editing basic fields.
+  if (timeline !== undefined) {
+    data.timeline = timeline === null ? Prisma.DbNull : timeline;
+  }
+  if (contentByTier !== undefined) {
+    data.contentByTier = contentByTier === null ? Prisma.DbNull : contentByTier;
+  }
+  // Sticker link: connect if a string, disconnect if explicit null,
+  // untouched if undefined.
+  if (stickerId !== undefined) {
+    if (stickerId === null || stickerId === "") {
+      data.sticker = { disconnect: true };
+    } else {
+      // Confirm the sticker exists so we don't create a dangling FK error.
+      const sticker = await prisma.sticker.findUnique({
+        where: { id: stickerId },
+        select: { id: true },
+      });
+      if (!sticker) {
+        return NextResponse.json(
+          { error: `Sticker not found: ${stickerId}` },
+          { status: 400 },
+        );
+      }
+      data.sticker = { connect: { id: sticker.id } };
+    }
   }
 
   try {
