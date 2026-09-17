@@ -23,6 +23,8 @@ import { useEffect, useMemo, useState } from "react";
 import { scaffoldFor, type PartScaffold } from "@/lib/oclm-scaffolding";
 import type { OclmPartKind } from "@/lib/wol-import";
 import FillInBlankCard from "./FillInBlankCard";
+import AwardToast from "./AwardToast";
+import { rollForRandomAward, type AwardedEntry } from "@/lib/award";
 
 // ── Shared types (mirror lib/wol-import.ts shapes) ────────────────────
 
@@ -498,6 +500,9 @@ export default function WorkbookPanel({
   const modeKey = `oclm-mode:${packId}`;
   const [mode, setMode] = useState<"study" | "live">("study");
   const [modeLoaded, setModeLoaded] = useState(false);
+  // Surprise-reward drop when the user hits Save (see the Save handler
+  // below). null until an award lands; then rendered by <AwardToast/>.
+  const [pendingAward, setPendingAward] = useState<AwardedEntry | null>(null);
   useEffect(() => {
     try {
       const explicit = window.localStorage.getItem(modeKey);
@@ -685,7 +690,13 @@ export default function WorkbookPanel({
       {modeLoaded && !live && (
         <div className="sticky bottom-3 z-20 flex justify-center pointer-events-none">
           <button
-            onClick={() => switchMode("live")}
+            onClick={async () => {
+              switchMode("live");
+              // Roll for a surprise Bible-character drop as a reward for
+              // finishing the study. ~25% chance so it stays special.
+              const award = await rollForRandomAward("workbook-save");
+              if (award) setPendingAward(award);
+            }}
             className="pointer-events-auto px-6 py-3 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold shadow-2xl ring-1 ring-emerald-700/20 transition"
           >
             💾 Save study guide
@@ -712,6 +723,11 @@ export default function WorkbookPanel({
           )}
         </p>
       )}
+
+      <AwardToast
+        award={pendingAward}
+        onDismiss={() => setPendingAward(null)}
+      />
     </section>
   );
 }

@@ -8,6 +8,8 @@ import {
   useState,
 } from "react";
 import Confetti from "@/components/Confetti";
+import AwardToast from "@/components/AwardToast";
+import { rollForRandomAward, type AwardedEntry } from "@/lib/award";
 
 /* ── Types ─────────────────────────────────────────────────────────── */
 
@@ -386,6 +388,9 @@ export default function WatchtowerStudyPanel(
   const modeKey = `wt-mode:${props.packId}`;
   const [mode, setMode] = useState<"study" | "live">("study");
   const [modeLoaded, setModeLoaded] = useState(false);
+  // Surprise-reward drop when the user hits Save (see the Save handler
+  // below). null until an award lands; then rendered by <AwardToast/>.
+  const [pendingAward, setPendingAward] = useState<AwardedEntry | null>(null);
   useEffect(() => {
     try {
       const explicit = window.localStorage.getItem(modeKey);
@@ -552,7 +557,14 @@ export default function WatchtowerStudyPanel(
           {modeLoaded && !live && (
             <div className="flex justify-center pt-4">
               <button
-                onClick={() => switchMode("live")}
+                onClick={async () => {
+                  switchMode("live");
+                  // Roll for a surprise Bible-character drop as a reward
+                  // for finishing the study. ~25% chance so it stays
+                  // special.
+                  const award = await rollForRandomAward("watchtower-save");
+                  if (award) setPendingAward(award);
+                }}
                 className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold shadow-sm transition"
               >
                 💾 Save study guide
@@ -566,6 +578,11 @@ export default function WatchtowerStudyPanel(
           />
         </>
       )}
+
+      <AwardToast
+        award={pendingAward}
+        onDismiss={() => setPendingAward(null)}
+      />
     </section>
   );
 }
