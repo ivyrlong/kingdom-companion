@@ -38,6 +38,12 @@ export default function Navbar() {
                 Meeting
               </Link>
               <Link
+                href="/encyclopedia"
+                className="text-sm text-zinc-600 dark:text-zinc-300 hover:text-coral-600 dark:hover:text-coral-400 transition"
+              >
+                My Book
+              </Link>
+              <Link
                 href="/profile"
                 className="text-sm text-zinc-600 dark:text-zinc-300 hover:text-coral-600 dark:hover:text-coral-400 transition"
               >
