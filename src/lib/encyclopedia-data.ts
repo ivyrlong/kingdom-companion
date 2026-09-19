@@ -1,8 +1,5 @@
 import { prisma } from "@/lib/db";
-import {
-  getEncyclopediaCapabilities,
-  curatedAgeFilter,
-} from "@/lib/encyclopedia";
+import { getEncyclopediaCapabilities } from "@/lib/encyclopedia";
 import type {
   EncyclopediaItem,
   EncyclopediaCaps,
@@ -61,10 +58,11 @@ export async function loadEncyclopediaBundle(
   if (caps.receivesCurated) {
     const [entries, collections] = await Promise.all([
       prisma.encyclopediaEntry.findMany({
-        where: {
-          isActive: true,
-          ageGroup: { in: curatedAgeFilter(ageGroup) as never },
-        },
+        // Every entry is available to every viewer — the age adaptation
+        // happens through contentByTier at render time, not by hiding
+        // rows. `ageGroup` on the entry is now informational (used only
+        // to pick a default tier when contentByTier is absent).
+        where: { isActive: true },
         orderBy: { term: "asc" },
         include: {
           // Linked sticker (BIBLE_CHARACTER-kind entries have one) —
