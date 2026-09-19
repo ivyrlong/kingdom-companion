@@ -41,7 +41,16 @@ export default function Navbar() {
                 href="/encyclopedia"
                 className="text-sm text-zinc-600 dark:text-zinc-300 hover:text-coral-600 dark:hover:text-coral-400 transition"
               >
-                My Book
+                {(() => {
+                  // Match the age-tier name the encyclopedia page shows:
+                  // LITTLE_ONES → Sticker Book, YOUTH/FAMILY → Discovery
+                  // Journal, ADULT → Study Notebook. Falls back to
+                  // Discovery Journal for unknown tiers.
+                  const ag = (session.user as { ageGroup?: string }).ageGroup;
+                  if (ag === "LITTLE_ONES") return "Sticker Book";
+                  if (ag === "ADULT") return "Study Notebook";
+                  return "Discovery Journal";
+                })()}
               </Link>
               <Link
                 href="/profile"
