@@ -48,6 +48,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/public           ./public
 # Schema + migrations so the entrypoint can run `prisma migrate deploy`.
 COPY --from=builder --chown=nextjs:nodejs /app/prisma          ./prisma
 COPY --from=builder --chown=nextjs:nodejs /app/prisma.config.ts ./prisma.config.ts
+# Character bible read by prisma/seed-characters.ts at runtime.
+# Standalone's tracer only follows what the Next server imports, so
+# the seed script's fs.readFileSync target never gets traced in.
+COPY --from=builder --chown=nextjs:nodejs /app/prompts         ./prompts
 
 # Overlay the full builder node_modules on top of the standalone's
 # trimmed set. Selectively copying just `prisma` + `@prisma` doesn't
