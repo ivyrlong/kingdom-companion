@@ -129,9 +129,16 @@ model ContentPack {
   title                  String // e.g. "WT Study - April 6" or "Daily Text - March 30"
   source                 ContentSource
   context                GameContext   @default(EVERGREEN)
-  sourceText             String? // original pasted text (for reference)
-  comment                String? // Daily Text: the normal comment (Youth/Adult)
-  simplifiedComment      String? // Daily Text: simplified lesson for Little Ones
+  sourceText             String? // citation + verbatim scripture only — never publication prose
+  // Daily Text: four age-tiered summaries, written in our own words.
+  // Shape: { littleOnes, youth, adult, family } where each tier is
+  // { summary: string, discussionQuestion?: string } — the question is
+  // populated for `family` only. Source of truth; the two String
+  // columns below are legacy mirrors kept so pre-tiering rows and any
+  // reader that hasn't moved over yet still render.
+  commentByTier          Json?
+  comment                String? // legacy mirror of commentByTier.adult.summary
+  simplifiedComment      String? // legacy mirror of commentByTier.littleOnes.summary
   featuredGameSlug       String? // Daily Text: game embedded on the Little Ones Today page
   date                   DateTime? // target date (for daily text) or null
   vocabulary             Json // string[]
