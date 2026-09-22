@@ -45,18 +45,17 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static     ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public           ./public
 
-# Prisma runtime bits that the tracer doesn't always pick up, plus the
-# CLI + migrations so the entrypoint can run `prisma migrate deploy`
-# against the db container at startup.
-COPY --from=builder --chown=nextjs:nodejs /app/prisma                     ./prisma
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma       ./node_modules/.prisma
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma       ./node_modules/@prisma
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/prisma        ./node_modules/prisma
-# prisma.config.ts imports "dotenv/config", so dotenv must resolve at
-# runtime when the entrypoint runs `prisma migrate deploy`. It is a
-# transitive install today; copy it explicitly so a future dep
-# reshuffle can't quietly break the container start.
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/dotenv        ./node_modules/dotenv
+# Schema + migrations so the entrypoint can run `prisma migrate deploy`.
+COPY --from=builder --chown=nextjs:nodejs /app/prisma          ./prisma
+COPY --from=builder --chown=nextjs:nodejs /app/prisma.config.ts ./prisma.config.ts
+
+# Overlay the full builder node_modules on top of the standalone's
+# trimmed set. Selectively copying just `prisma` + `@prisma` doesn't
+# work — the prisma CLI eagerly imports `@prisma/dev`, which reaches
+# into transitive deps (pathe, etc.) hoisted at the top level by npm.
+# Chasing those one-by-one is whack-a-mole. Full overlay is bigger
+# (~200MB extra) but eliminates that class of runtime crashloop.
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 
 COPY --chown=nextjs:nodejs docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
