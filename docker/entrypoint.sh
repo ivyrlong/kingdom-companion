@@ -6,7 +6,12 @@
 set -e
 
 echo "[entrypoint] Applying database migrations..."
-npx --no-install prisma migrate deploy
+# Call prisma's build/index.js directly instead of via `npx prisma`.
+# The .bin/ shim lives in the builder's node_modules and does not
+# survive into the standalone runner, so PATH-based CLI lookup fails
+# with "prisma: not found". The prisma package itself is copied into
+# the runner (see Dockerfile), so this call is stable.
+node ./node_modules/prisma/build/index.js migrate deploy
 
 echo "[entrypoint] Starting Next.js standalone server on :$PORT"
 exec node server.js
