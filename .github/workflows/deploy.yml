@@ -1,43 +1,68 @@
-name: Deploy
+name: Deploy to Hostinger VPS
 
+# Fires on push to master (production branch). Manual re-runs via the
+# workflow_dispatch button on the Actions tab.
 on:
   push:
-    branches: [main]
+    branches: [master]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "prompts/**"
   workflow_dispatch:
+
+concurrency:
+  # A newer push preempts an in-flight deploy so we never race with
+  # ourselves on the VPS.
+  group: deploy-production
+  cancel-in-progress: false
 
 jobs:
   deploy:
-    name: Deploy to Production
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    timeout-minutes: 15
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          SSH_HOST: ${{ secrets.DEPLOY_SSH_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Build Docker image
-        run: docker build -t kingdom-companion:${{ github.sha }} .
+      - name: Deploy on VPS
+        env:
+          SSH_HOST: ${{ secrets.DEPLOY_SSH_HOST }}
+          SSH_USER: ${{ secrets.DEPLOY_SSH_USER }}
+        run: |
+          ssh -o BatchMode=yes "$SSH_USER@$SSH_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cd /opt/kingdom-companion
+          echo "[deploy] git fetch + reset --hard origin/master"
+          git fetch --prune origin
+          git reset --hard origin/master
+          echo "[deploy] docker compose build web"
+          docker compose build web
+          echo "[deploy] docker compose up -d (recreates web, leaves db running)"
+          docker compose up -d
+          echo "[deploy] pruning dangling images"
+          docker image prune -f
+          REMOTE
 
-      - name: Save Docker image
-        run: docker save kingdom-companion:${{ github.sha }} | gzip > image.tar.gz
-
-      - name: Copy image to server
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_KEY }}
-          source: "image.tar.gz,docker-compose.yml"
-          target: /opt/kingdom-companion
-
-      - name: Deploy on server
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_KEY }}
-          script: |
-            cd /opt/kingdom-companion
-            docker load < image.tar.gz
-            docker tag kingdom-companion:${{ github.sha }} kingdom-companion:latest
-            docker compose up -d --force-recreate app
-            docker exec -T $(docker compose ps -q app) npx prisma migrate deploy || true
-            rm -f image.tar.gz
+      - name: Smoke test
+        env:
+          SITE_URL: ${{ secrets.DEPLOY_SITE_URL }}
+        run: |
+          # Give Prisma migrate + Next boot ~30s worst case.
+          for i in $(seq 1 15); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$SITE_URL/api/auth/session" || true)
+            echo "attempt $i: /api/auth/session -> $code"
+            if [ "$code" = "200" ]; then exit 0; fi
+            sleep 2
+          done
+          echo "Site did not respond 200 within 30s"
+          exit 1

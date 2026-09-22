@@ -1,0 +1,4 @@
+# Shell scripts must be LF so they run in the linux runtime images
+# regardless of who cloned/edited on Windows.
+*.sh text eol=lf
+docker/entrypoint.sh text eol=lf
