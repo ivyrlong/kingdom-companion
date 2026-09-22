@@ -1,0 +1,12 @@
+# Appended to /etc/caddy/Caddyfile on the VPS (once). Caddy terminates
+# TLS via Let's Encrypt automatically and forwards to the docker-proxy
+# that maps 127.0.0.1:8804 → the web container's :3000.
+kc.blmfamily.com {
+	encode gzip
+	# Larger client bodies than the default 10MB so admin sticker /
+	# scene uploads don't fail (a few multi-MB PNGs at once fits).
+	request_body {
+		max_size 32MB
+	}
+	reverse_proxy 127.0.0.1:8804
+}

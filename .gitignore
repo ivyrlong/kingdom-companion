@@ -42,3 +42,7 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# docker-compose bind-mounts (created on the VPS, never committed)
+/data/
+

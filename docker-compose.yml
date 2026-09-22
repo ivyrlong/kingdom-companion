@@ -1,35 +1,62 @@
+name: kingdom-companion
+
+# Deployed to /opt/kingdom-companion on the VPS. Binds only to loopback
+# on the host; Caddy on 443 fronts it (see Caddyfile.kc for the block
+# appended once to /etc/caddy/Caddyfile).
+
 services:
   db:
     image: postgres:16-alpine
+    # Survive VPS reboots / dockerd restarts without a human running
+    # `compose up` — matches the pattern the other apps on this box use.
     restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: kingdom_companion
+      POSTGRES_USER: ${POSTGRES_USER:-kc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-kingdom_companion}
     volumes:
-      - pgdata:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+      - db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kc}"]
       interval: 5s
       timeout: 5s
-      retries: 5
-
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    restart: unless-stopped
+      retries: 10
     ports:
-      - "3000:3000"
-    environment:
-      DATABASE_URL: postgresql://postgres:postgres@db:5432/kingdom_companion
-      AUTH_SECRET: ${AUTH_SECRET:-change-me-in-production}
-      AUTH_URL: ${AUTH_URL:-http://localhost:3000}
+      # Loopback-scoped, unique across this shared VPS (arbiter uses
+      # 15432 / 25432). Only host-side psql/pg_dump reach us; the app
+      # talks over the compose network at db:5432.
+      - "${DB_BIND:-127.0.0.1:35432}:5432"
+
+  web:
+    build: .
+    image: kingdom-companion-web
+    container_name: kingdom-companion-web
+    restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
+    environment:
+      NODE_ENV: production
+      # Prisma reads DATABASE_URL both at build-time (generate) and at
+      # runtime (queries + migrate deploy in the entrypoint).
+      DATABASE_URL: postgres://${POSTGRES_USER:-kc}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-kingdom_companion}
+      AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET is required}
+      # Full https URL for the public site — NextAuth uses it to build
+      # callback URLs and cookies. Caddy terminates TLS in front of us.
+      AUTH_URL: ${AUTH_URL:?AUTH_URL is required (e.g. https://kc.blmfamily.com)}
+      NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-Kingdom Companion}
+    volumes:
+      # Uploaded stickers / card art land in public/uploads via
+      # src/app/api/admin/images/route.ts. Bind-mount survives image
+      # rebuilds so we don't wipe user content on every deploy.
+      - ./data/uploads:/app/public/uploads
+    ports:
+      - "${APP_BIND:-127.0.0.1:8804}:3000"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
-  pgdata:
+  db-data:
