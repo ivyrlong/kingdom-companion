@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "StickerKind" ADD VALUE 'BIBLE_CHARACTER';

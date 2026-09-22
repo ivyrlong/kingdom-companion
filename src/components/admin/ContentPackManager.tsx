@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import type { WorkbookSection, WorkbookPart } from "@/components/WorkbookPanel";
 
 /* ── Types ──────────────────────────────────────────────────────────── */
 
@@ -40,6 +41,10 @@ interface ContentPack {
   // single pack is fetched for editing; powers the per-question picker.
   images?: { id: string; path: string; altText: string; filename: string }[];
   _count?: { instances: number };
+  // OCLM workbook outline — present only for source=OCLM packs. Editing
+  // reaches inside each part to adjust the AI-generated summary and
+  // family discussion question.
+  sections?: WorkbookSection[];
 }
 
 /* ── Badge helpers ──────────────────────────────────────────────────── */
@@ -84,6 +89,12 @@ export default function ContentPackManager() {
     id: string;
     title: string;
   } | null>(null);
+  // AI insights modal state — copy the prompt out, paste the response back.
+  const [insightsPack, setInsightsPack] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
+  const [insightsMessage, setInsightsMessage] = useState<string>("");
 
   /* ── Fetch packs ─────────────────────────────────────────────────── */
 
@@ -123,10 +134,35 @@ export default function ContentPackManager() {
           setEditingId(null);
           setEditData(null);
         }
+        return;
       }
-    } catch {
-      setError("Failed to delete content pack.");
+      // Surface server error rather than silently failing — previously
+      // a non-2xx response left the user staring at an unchanged list
+      // with no indication of why.
+      const body = await res.json().catch(() => ({}));
+      setError(
+        body.message || body.error || `Delete failed (${res.status}).`,
+      );
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Failed to delete content pack.",
+      );
     }
+  };
+
+  /* ── AI insights (OCLM only, manual copy/paste flow) ─────────────── */
+
+  const openInsightsModal = (id: string, title: string) => {
+    setInsightsMessage("");
+    setError("");
+    setInsightsPack({ id, title });
+  };
+
+  const handleInsightsSaved = (title: string, matched: number, missing: number) => {
+    setInsightsPack(null);
+    setInsightsMessage(
+      `✓ "${title}": ${matched} parts got insights${missing > 0 ? ` (${missing} missing)` : ""}.`,
+    );
   };
 
   /* ── Start editing ───────────────────────────────────────────────── */
@@ -211,6 +247,12 @@ export default function ContentPackManager() {
           keyPhrases: editData.keyPhrases,
           comment: editData.comment ?? null,
           simplifiedComment: editData.simplifiedComment ?? null,
+          // Only send the workbook outline for OCLM packs — the schema
+          // accepts it as optional, but posting an empty array on a
+          // Watchtower pack would nuke any existing data.
+          ...(editData.source === "OCLM" && editData.sections
+            ? { sections: editData.sections }
+            : {}),
         }),
       });
 
@@ -259,6 +301,20 @@ export default function ContentPackManager() {
 
   return (
     <div className="space-y-6">
+      {(insightsMessage || error) && (
+        <div className="space-y-2">
+          {insightsMessage && (
+            <div className="text-sm text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-900/20 rounded-lg px-3 py-2">
+              {insightsMessage}
+            </div>
+          )}
+          {error && (
+            <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">
+              {error}
+            </div>
+          )}
+        </div>
+      )}
       {/* Filter tabs */}
       <div className="flex gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1 w-fit flex-wrap">
         {["All", "MEETING_PREP", "MEETING_LIVE", "DAILY", "EVERGREEN"].map(
@@ -385,6 +441,15 @@ export default function ContentPackManager() {
                   >
                     Images
                   </button>
+                  {pack.source === "OCLM" && (
+                    <button
+                      onClick={() => openInsightsModal(pack.id, pack.title)}
+                      className="px-3 py-1.5 text-sm bg-sky-100 dark:bg-sky-900/40 hover:bg-sky-200 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 rounded-lg transition"
+                      title="Get a prompt to run through ChatGPT / Claude, then paste the JSON response back in."
+                    >
+                      ✨ AI Insights
+                    </button>
+                  )}
                   <button
                     onClick={() => startEdit(pack.id)}
                     className="px-3 py-1.5 text-sm bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-lg transition"
@@ -409,6 +474,17 @@ export default function ContentPackManager() {
           packId={imagesPack.id}
           packTitle={imagesPack.title}
           onClose={() => setImagesPack(null)}
+        />
+      )}
+
+      {insightsPack && (
+        <InsightsModal
+          packId={insightsPack.id}
+          packTitle={insightsPack.title}
+          onClose={() => setInsightsPack(null)}
+          onSaved={(matched, missing) =>
+            handleInsightsSaved(insightsPack.title, matched, missing)
+          }
         />
       )}
     </div>
@@ -771,6 +847,14 @@ function ContentPackEditor({
             list.
           </p>
         </div>
+      )}
+
+      {/* OCLM workbook outline — per-part AI content editor */}
+      {data.source === "OCLM" && data.sections && data.sections.length > 0 && (
+        <OclmWorkbookEditor
+          sections={data.sections}
+          onChange={(next) => onChange({ ...data, sections: next })}
+        />
       )}
 
       {/* Vocabulary */}
@@ -1161,6 +1245,421 @@ function ListEditor({
         >
           Add
         </button>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   OCLM workbook editor — per-part AI content editor for Life & Ministry
+   packs. Shows the whole meeting outline with an editable "This week"
+   card (kid summary + family question + listening phrases) on every
+   non-song part. Songs and prayers pass through untouched.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+const SECTION_LABELS: Record<string, string> = {
+  OPENING: "Opening",
+  TREASURES: "Treasures From God's Word",
+  MINISTRY: "Apply Yourself to the Field Ministry",
+  LIVING: "Living as Christians",
+  CLOSING: "Closing",
+};
+
+function OclmWorkbookEditor({
+  sections,
+  onChange,
+}: {
+  sections: WorkbookSection[];
+  onChange: (next: WorkbookSection[]) => void;
+}) {
+  const updatePart = (
+    si: number,
+    pi: number,
+    patch: Partial<WorkbookPart>,
+  ) => {
+    const next = sections.map((s, i) =>
+      i === si
+        ? {
+            ...s,
+            parts: s.parts.map((p, j) => (j === pi ? { ...p, ...patch } : p)),
+          }
+        : s,
+    );
+    onChange(next);
+  };
+
+  const partsWithAi = sections.reduce(
+    (n, s) => n + s.parts.filter((p) => p.aiContent).length,
+    0,
+  );
+  const partsTotal = sections.reduce(
+    (n, s) => n + s.parts.filter((p) => p.kind !== "song").length,
+    0,
+  );
+
+  return (
+    <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-6 space-y-4">
+      <div>
+        <h3 className="font-semibold text-zinc-900 dark:text-zinc-50 mb-1">
+          Life &amp; Ministry Outline
+        </h3>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          {partsWithAi} of {partsTotal} parts have AI insights. Use the ✨
+          AI Insights button on the pack row to regenerate all of them, or
+          hand-edit individual parts below.
+        </p>
+      </div>
+
+      {sections.map((section, si) => (
+        <div key={si} className="space-y-2">
+          <p className="text-xs uppercase tracking-wide font-semibold text-zinc-500 dark:text-zinc-400">
+            {SECTION_LABELS[section.kind] ?? section.kind}
+          </p>
+          <div className="space-y-3">
+            {section.parts.map((part, pi) => (
+              <PartAiEditor
+                key={pi}
+                part={part}
+                onChange={(patch) => updatePart(si, pi, patch)}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PartAiEditor({
+  part,
+  onChange,
+}: {
+  part: WorkbookPart;
+  onChange: (patch: Partial<WorkbookPart>) => void;
+}) {
+  const isSong = part.kind === "song";
+  const ai = part.aiContent;
+
+  const setAi = (patch: Partial<NonNullable<WorkbookPart["aiContent"]>>) => {
+    onChange({
+      aiContent: {
+        kidSummary: ai?.kidSummary ?? "",
+        familyDiscussionQuestion: ai?.familyDiscussionQuestion ?? "",
+        listeningPhrases: ai?.listeningPhrases ?? [],
+        ...patch,
+      },
+    });
+  };
+
+  const clearAi = () => onChange({ aiContent: undefined });
+
+  const [newPhrase, setNewPhrase] = useState("");
+  const addPhrase = () => {
+    if (!newPhrase.trim()) return;
+    setAi({
+      listeningPhrases: [...(ai?.listeningPhrases ?? []), newPhrase.trim()],
+    });
+    setNewPhrase("");
+  };
+  const removePhrase = (idx: number) => {
+    setAi({
+      listeningPhrases: (ai?.listeningPhrases ?? []).filter((_, i) => i !== idx),
+    });
+  };
+
+  return (
+    <div
+      className={`rounded-lg border p-3 ${
+        isSong
+          ? "bg-zinc-50 dark:bg-zinc-900/50 border-zinc-200 dark:border-zinc-800"
+          : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800"
+      }`}
+    >
+      <div className="flex items-baseline flex-wrap gap-2">
+        {part.number !== undefined && (
+          <span className="text-xs text-zinc-400 tabular-nums">
+            {part.number}.
+          </span>
+        )}
+        <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+          {part.title}
+        </span>
+        <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400">
+          {part.kind}
+        </span>
+        {ai && (
+          <button
+            onClick={clearAi}
+            className="ml-auto text-[11px] text-red-500 hover:text-red-700"
+            title="Remove AI insights from this part"
+          >
+            Clear AI
+          </button>
+        )}
+      </div>
+
+      {isSong ? (
+        <p className="mt-1 text-xs text-zinc-400 italic">
+          Songs don&apos;t get AI insights.
+        </p>
+      ) : (
+        <div className="mt-3 space-y-2">
+          <div>
+            <label className="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-0.5">
+              Kid summary
+            </label>
+            <textarea
+              value={ai?.kidSummary ?? ""}
+              onChange={(e) => setAi({ kidSummary: e.target.value })}
+              placeholder={
+                ai
+                  ? ""
+                  : "(no AI insights yet — type something to add, or run ✨ AI Insights)"
+              }
+              rows={2}
+              className="w-full px-2 py-1.5 text-sm rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-sky-400"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-0.5">
+              Family discussion question
+            </label>
+            <textarea
+              value={ai?.familyDiscussionQuestion ?? ""}
+              onChange={(e) => setAi({ familyDiscussionQuestion: e.target.value })}
+              rows={2}
+              className="w-full px-2 py-1.5 text-sm rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-sky-400"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-0.5">
+              Listening phrases
+            </label>
+            <div className="flex flex-wrap gap-1 mb-1">
+              {(ai?.listeningPhrases ?? []).map((p, i) => (
+                <span
+                  key={i}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 rounded text-xs"
+                >
+                  {p}
+                  <button
+                    onClick={() => removePhrase(i)}
+                    className="text-sky-400 hover:text-red-500"
+                    aria-label={`Remove ${p}`}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+              {(ai?.listeningPhrases ?? []).length === 0 && (
+                <span className="text-xs text-zinc-400 italic">
+                  None yet.
+                </span>
+              )}
+            </div>
+            <div className="flex gap-1">
+              <input
+                value={newPhrase}
+                onChange={(e) => setNewPhrase(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addPhrase())}
+                placeholder="Add a phrase..."
+                className="flex-1 px-2 py-1 text-xs rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-sky-400"
+              />
+              <button
+                onClick={addPhrase}
+                className="text-xs text-sky-600 hover:text-sky-700 px-2"
+              >
+                Add
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   AI Insights Modal — copy prompt out, paste JSON response back.
+   Zero API cost: the admin runs the prompt through ChatGPT / Claude web.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+function InsightsModal({
+  packId,
+  packTitle,
+  onClose,
+  onSaved,
+}: {
+  packId: string;
+  packTitle: string;
+  onClose: () => void;
+  onSaved: (matched: number, missing: number) => void;
+}) {
+  const [prompt, setPrompt] = useState("");
+  const [loadingPrompt, setLoadingPrompt] = useState(true);
+  const [promptError, setPromptError] = useState("");
+  const [pasted, setPasted] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoadingPrompt(true);
+      setPromptError("");
+      try {
+        const res = await fetch(`/api/admin/oclm-insights/${packId}`);
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (!cancelled) setPromptError(body.error || `Failed (${res.status})`);
+          return;
+        }
+        if (!cancelled) setPrompt(body.prompt || "");
+      } catch (e) {
+        if (!cancelled) {
+          setPromptError(
+            e instanceof Error ? e.message : "Failed to load prompt.",
+          );
+        }
+      } finally {
+        if (!cancelled) setLoadingPrompt(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [packId]);
+
+  const copyPrompt = async () => {
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setSaveError("Clipboard access denied — select the prompt manually.");
+    }
+  };
+
+  const savePasted = async () => {
+    if (!pasted.trim()) {
+      setSaveError("Paste the AI's JSON response before saving.");
+      return;
+    }
+    setSaving(true);
+    setSaveError("");
+    try {
+      const res = await fetch(`/api/admin/oclm-insights/${packId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ response: pasted }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSaveError(body.error || `Failed (${res.status})`);
+        return;
+      }
+      onSaved(body.matched ?? 0, (body.missingIds ?? []).length);
+    } catch (e) {
+      setSaveError(
+        e instanceof Error ? e.message : "Failed to save insights.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="px-5 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-baseline justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+              ✨ AI Insights — {packTitle}
+            </h2>
+            <p className="text-xs text-zinc-500 mt-0.5">
+              Manual flow — no API key needed. Copy the prompt into ChatGPT or
+              Claude web, then paste its JSON reply back here.
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-zinc-400 hover:text-zinc-600 text-2xl leading-none"
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+          {/* Step 1 — Prompt */}
+          <section>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+                1. Copy this prompt
+              </h3>
+              <button
+                onClick={copyPrompt}
+                disabled={loadingPrompt || !!promptError}
+                className="text-xs px-3 py-1 rounded bg-sky-100 dark:bg-sky-900/40 hover:bg-sky-200 text-sky-700 dark:text-sky-300 disabled:opacity-50"
+              >
+                {copied ? "✓ Copied" : "Copy prompt"}
+              </button>
+            </div>
+            {promptError && (
+              <p className="text-sm text-red-600 dark:text-red-400">
+                {promptError}
+              </p>
+            )}
+            <textarea
+              value={loadingPrompt ? "Loading…" : prompt}
+              readOnly
+              rows={10}
+              className="w-full font-mono text-xs px-3 py-2 rounded border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
+            />
+          </section>
+
+          {/* Step 2 — Paste */}
+          <section>
+            <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-2">
+              2. Paste the JSON response here
+            </h3>
+            <p className="text-xs text-zinc-500 mb-2">
+              Paste the entire response — {"{"} entries: [...] {"}"} object or
+              a bare array. Code fences are stripped automatically.
+            </p>
+            <textarea
+              value={pasted}
+              onChange={(e) => setPasted(e.target.value)}
+              placeholder='{"entries": [{"id": "TREASURES:1", "kidSummary": "...", ...}, ...]}'
+              rows={8}
+              className="w-full font-mono text-xs px-3 py-2 rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 outline-none focus:ring-2 focus:ring-sky-500"
+            />
+            {saveError && (
+              <p className="mt-2 text-sm text-red-600 dark:text-red-400">
+                {saveError}
+              </p>
+            )}
+          </section>
+        </div>
+
+        <div className="px-5 py-3 border-t border-zinc-200 dark:border-zinc-800 flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-lg"
+          >
+            Close
+          </button>
+          <button
+            onClick={savePasted}
+            disabled={saving || !pasted.trim()}
+            className="px-4 py-2 text-sm bg-sky-500 hover:bg-sky-600 text-white rounded-lg disabled:opacity-50"
+          >
+            {saving ? "Saving…" : "Save insights"}
+          </button>
+        </div>
       </div>
     </div>
   );

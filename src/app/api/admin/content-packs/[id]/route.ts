@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
-import { questionSchema } from "../_schemas";
+import { questionSchema, oclmSectionSchema } from "../_schemas";
 
 const updateSchema = z.object({
   title: z.string().min(1).optional(),
@@ -29,6 +29,14 @@ const updateSchema = z.object({
   sourceUrl: z.string().nullable().optional(),
   sourceDocId: z.string().nullable().optional(),
   attribution: z.string().nullable().optional(),
+  // OCLM workbook metadata. JSON columns (bibleReadingRange,
+  // bibleReadingAssignment, songs, sections) are optional-only for
+  // the same reason as themeScripture.
+  publicationCode: z.string().nullable().optional(),
+  bibleReadingRange: z.object({ reference: z.string() }).optional(),
+  bibleReadingAssignment: z.object({ reference: z.string() }).optional(),
+  songs: z.array(z.number().int()).optional(),
+  sections: z.array(oclmSectionSchema).optional(),
 });
 
 async function authorize() {
@@ -116,6 +124,18 @@ export async function DELETE(
 
   const { id } = await params;
 
+  // Verify the pack exists first so we can return a clean 404 without
+  // needing to interpret a Prisma error code. The $transaction below
+  // would surface FK / constraint errors that are NOT P2025 — by
+  // splitting the existence check out we can give the UI a real reason.
+  const existing = await prisma.contentPack.findUnique({
+    where: { id },
+    select: { id: true },
+  });
+  if (!existing) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   try {
     await prisma.$transaction([
       prisma.gameInstance.deleteMany({ where: { contentPackId: id } }),
@@ -123,9 +143,14 @@ export async function DELETE(
     ]);
     return NextResponse.json({ success: true });
   } catch (e: unknown) {
-    if (e && typeof e === "object" && "code" in e && e.code === "P2025") {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
-    throw e;
+    const msg =
+      e instanceof Error ? e.message : typeof e === "string" ? e : String(e);
+    const code =
+      e && typeof e === "object" && "code" in e ? String(e.code) : undefined;
+    console.error("[content-packs DELETE] failed:", { id, code, msg });
+    return NextResponse.json(
+      { error: "Failed to delete", code, message: msg },
+      { status: 500 },
+    );
   }
 }

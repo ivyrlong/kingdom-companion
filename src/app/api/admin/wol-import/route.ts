@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { importFromWolUrl } from "@/lib/wol-import";
+import { importPackFromWolUrl } from "@/lib/wol-import";
 
 /**
  * POST /api/admin/wol-import
  * Body: { url: string }   — a wol.jw.org canonical /wol/d/ URL or bare docId
- * Returns: a DraftPack the admin can review and submit via the usual
- *          POST /api/admin/content-packs flow. NO article body prose is
- *          ever stored — only structure, citations, and derived data.
+ * Returns: { kind: "WATCHTOWER" | "OCLM", pack: ... } — discriminated union
+ *          so the admin UI can branch its prefill on the publication type.
+ *          NO article body prose is ever stored — only structure, citations,
+ *          and derived data.
  */
 export async function POST(req: Request) {
   const session = await auth();
@@ -34,8 +35,8 @@ export async function POST(req: Request) {
   }
 
   try {
-    const draft = await importFromWolUrl(url.trim());
-    return NextResponse.json(draft);
+    const result = await importPackFromWolUrl(url.trim());
+    return NextResponse.json(result);
   } catch (e) {
     const message = e instanceof Error ? e.message : "Import failed";
     return NextResponse.json({ error: message }, { status: 400 });

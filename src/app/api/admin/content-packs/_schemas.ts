@@ -37,3 +37,51 @@ export const questionSchema = z.object({
   subheading: z.string().optional(),
   references: z.array(referenceSchema).default([]),
 });
+
+/**
+ * OCLM workbook part — one row in the meeting agenda.
+ * Mirrors `WorkbookPart` in lib/wol-import.ts.
+ */
+export const workbookPartSchema = z.object({
+  number: z.number().int().optional(),
+  kind: z.enum([
+    "song",
+    "openingComments",
+    "talk",
+    "spiritualGems",
+    "bibleReading",
+    "ministryConversation",
+    "returnVisit",
+    "ministryDemo",
+    "ministryTalk",
+    "bibleStudy",
+    "livingTalk",
+    "livingDiscussion",
+    "cbs",
+    "concludingComments",
+  ]),
+  section: z.enum(["OPENING", "TREASURES", "MINISTRY", "LIVING", "CLOSING"]),
+  title: z.string(),
+  durationMin: z.number().int().optional(),
+  scenarioTag: z.string().optional(),
+  songNumber: z.number().int().optional(),
+  videoUrl: z.string().optional(),
+  videoTitle: z.string().optional(),
+  references: z.array(referenceSchema).default([]),
+  promptQuestions: z.array(z.string()).default([]),
+  // Optional AI-generated insights for this part (populated by the
+  // /api/admin/oclm-insights endpoint after import).
+  aiContent: z
+    .object({
+      kidSummary: z.string(),
+      familyDiscussionQuestion: z.string(),
+      listeningPhrases: z.array(z.string()),
+    })
+    .optional(),
+});
+
+export const oclmSectionSchema = z.object({
+  kind: z.enum(["OPENING", "TREASURES", "MINISTRY", "LIVING", "CLOSING"]),
+  title: z.string(),
+  parts: z.array(workbookPartSchema),
+});

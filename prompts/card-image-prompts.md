@@ -13,8 +13,9 @@ peach `#FFA56B` · cream base `#FAF8F6` · ink `#3C3F4A`
 
 **Content rules baked in:** no crosses (use an upright stake or lamb/sheep for
 sacrifice themes), no halos, no holiday imagery, original characters only (never
-Caleb & Sophia or any branded likeness), Jehovah/Jesus never depicted
-(silhouettes only). Hangman deliberately has **no gallows/noose**.
+Caleb & Sophia or any branded likeness), Jehovah never depicted (Jesus is fine
+to depict — JW publications include him regularly). Hangman deliberately has
+**no gallows/noose**.
 
 **Recommended output:** ≥1024px long edge, landscape ~2:1 (matches the card's
 image area), then let the UI scale it down. Upload via **Admin → Game Images**.
@@ -104,4 +105,19 @@ A line-art Bible nature scene being filled in by a floating crayon, half clean o
 ## 17. Meeting Bingo (`meeting-bingo`)
 ```
 A friendly 3 by 3 listening card with a few squares cheerfully marked with stars and check marks, a small star stamp resting beside it, violet-dominant with golden and sky accents. Flat vector children's storybook illustration, single large centered focal subject, soft cream #FAF8F6 background, vibrant but harmonious palette of coral #FF8269 / sky #4ABDE8 / violet #9474EF / golden #F3B840 / peach #FFA56B, soft golden light, bold rounded simple shapes, clean minimal linework, no fine detail, cheerful peaceful mood, reads clearly as a small UI thumbnail, flat 2D, no text, no logos. Exclude: text, letters, numbers, photorealism, 3D render, busy or dark background, muddy or garish colors, gambling, casino, money, crosses, halos, holiday imagery, realistic faces, branded characters.
+```
+
+## 18. Meeting Maze (`meeting-maze`)
+```
+A cheerful top-down maze puzzle with a small glowing dot traveling along a winding path from a friendly start marker to a golden goal flag, gentle sparkles trailing behind, golden-dominant with sky and violet accents. Flat vector children's storybook illustration, single large centered focal subject, soft cream #FAF8F6 background, vibrant but harmonious palette of coral #FF8269 / sky #4ABDE8 / violet #9474EF / golden #F3B840 / peach #FFA56B, soft golden light, bold rounded simple shapes, clean minimal linework, no fine detail, cheerful peaceful mood, reads clearly as a small UI thumbnail, flat 2D, no text, no logos. Exclude: text, letters, numbers, photorealism, 3D render, busy or dark background, muddy or garish colors, dead ends drawn as walls of skulls or scary imagery, crosses, halos, holiday imagery, realistic faces, branded characters.
+```
+
+## 19. Paradise Builder (`paradise-builder`)
+```
+A cheerful open paradise storybook page with two friendly small paper stickers half-placed on it — a lion-and-lamb sticker settling onto a green meadow with a rolling hill and a soft blue sky, a small stack of fanned sticker corners peeking in from one edge as if just picked up, gentle sparkles around the placed sticker, coral-and-golden-dominant with sky and violet accents. Flat vector children's storybook illustration, single large centered focal subject, soft cream #FAF8F6 background, vibrant but harmonious palette of coral #FF8269 / sky #4ABDE8 / violet #9474EF / golden #F3B840 / peach #FFA56B, soft golden light, bold rounded simple shapes, clean minimal linework, no fine detail, cheerful peaceful mood, reads clearly as a small UI thumbnail, flat 2D, no text, no logos. Exclude: text, letters, numbers, photorealism, 3D render, busy or dark background, muddy or garish colors, human hands, adult figures, crosses, halos, holiday imagery, realistic faces, branded characters (Caleb & Sophia, Disney, etc.).
+```
+
+## 20. Find the Hidden Things (`hidden-objects`)
+```
+A cheerful busy paradise storybook scene with a large friendly magnifying glass held over one corner of the picture, several small friends and creatures peeking playfully from behind flowers and a leafy fruit tree (an ear tip, a tail, a small hand, a wing) and one small rabbit visibly tucked in the grass, gentle sparkles around the magnifying glass, coral-and-golden-dominant with sky and violet accents. Flat vector children's storybook illustration, single large centered focal subject, soft cream #FAF8F6 background, vibrant but harmonious palette of coral #FF8269 / sky #4ABDE8 / violet #9474EF / golden #F3B840 / peach #FFA56B, soft golden light, bold rounded simple shapes, clean minimal linework, no fine detail, cheerful peaceful mood, reads clearly as a small UI thumbnail, flat 2D, no text, no logos. Exclude: text, letters, numbers, photorealism, 3D render, busy or dark background, muddy or garish colors, human hands, adult figures, scary or spooky hidden things, crosses, halos, holiday imagery, realistic faces, branded characters (Caleb & Sophia, Disney, etc.).
 ```

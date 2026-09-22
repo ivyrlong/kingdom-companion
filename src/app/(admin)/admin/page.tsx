@@ -61,10 +61,28 @@ export default async function AdminPage() {
             Encyclopedia
           </Link>
           <Link
+            href="/admin/vocabulary"
+            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition"
+          >
+            Vocabulary
+          </Link>
+          <Link
             href="/admin/games"
             className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium rounded-lg transition"
           >
             Game Images
+          </Link>
+          <Link
+            href="/admin/stickers"
+            className="px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white text-sm font-medium rounded-lg transition"
+          >
+            Stickers
+          </Link>
+          <Link
+            href="/admin/scenes"
+            className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg transition"
+          >
+            Scenes
           </Link>
           <Link
             href="/admin/daily-responses"

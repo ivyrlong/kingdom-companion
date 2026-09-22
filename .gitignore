@@ -29,6 +29,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+dev.log
 
 # env files
 .env*
@@ -46,3 +47,12 @@ next-env.d.ts
 # docker-compose bind-mounts (created on the VPS, never committed)
 /data/
 
+# User-uploaded stickers / cards / game images.
+# Files already tracked stay tracked (they seed a fresh env); new
+# admin uploads on a dev machine are ignored — production uploads
+# live in the bind-mounted /opt/kingdom-companion/data/uploads/
+# volume, never in the repo.
+/public/uploads/*
+!/public/uploads/.gitkeep
+# If you deliberately want to add a new baked-in image, use
+# `git add -f public/uploads/xxx.png`.

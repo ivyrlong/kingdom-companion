@@ -1,5 +1,16 @@
 "use client";
 
+/**
+ * MeetingTabs — top of the /meeting page.
+ *
+ * Historical shape had two "phase" tabs (This Week / Meeting Live) that
+ * switched the panels' `live` prop. Playtest feedback: tab-switching every
+ * meeting was the wrong ergonomic. The phase tabs are gone; each panel
+ * (WorkbookPanel, WatchtowerStudyPanel) now self-manages a study↔live mode
+ * with a Save button (study→live) and an Edit link (live→study). Games
+ * for the current meeting always render at the bottom regardless of mode.
+ */
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import GameCardGrid, { type GameCard } from "@/components/GameCardGrid";
@@ -7,6 +18,9 @@ import WatchtowerStudyPanel, {
   type StudyQuestion,
   type SavedStudyResponse,
 } from "@/components/WatchtowerStudyPanel";
+import WorkbookPanel, {
+  type WorkbookSection,
+} from "@/components/WorkbookPanel";
 
 interface StudyData {
   ageGroup: string;
@@ -20,11 +34,18 @@ interface StudyData {
   sourceUrl: string | null;
 }
 
-const TABS = [
-  { key: "prep", label: "This Week" },
-  { key: "live", label: "Meeting Live" },
-] as const;
-type TabKey = (typeof TABS)[number]["key"];
+interface WorkbookData {
+  ageGroup: string;
+  packId: string;
+  title: string;
+  bibleReadingRange: { reference: string } | null;
+  bibleReadingAssignment: { reference: string } | null;
+  songs: number[];
+  sections: WorkbookSection[];
+  vocabulary: string[];
+  attribution: string | null;
+  sourceUrl: string | null;
+}
 
 // The two weekly meetings. A meeting-week game card belongs to the midweek
 // (Life & Ministry / OCLM) meeting or the weekend (Watchtower Study) meeting,
@@ -46,20 +67,22 @@ export default function MeetingTabs({
   weekOffset,
   weekLabel,
   study,
+  workbook,
 }: {
   prep: GameCard[];
   live: GameCard[];
   weekOffset: number;
   weekLabel: string;
   study?: StudyData | null;
+  workbook?: WorkbookData | null;
 }) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<TabKey>("prep");
 
   const all = [...prep, ...live];
   const hasWatchtower =
     !!study || all.some((c) => cardMeeting(c) === "WATCHTOWER");
-  const hasOclm = all.some((c) => cardMeeting(c) === "OCLM");
+  const hasOclm =
+    !!workbook || all.some((c) => cardMeeting(c) === "OCLM");
   // Land on whichever meeting actually has content; if both, default to the
   // weekend meeting (it carries the study panel).
   const [meeting, setMeeting] = useState<MeetingKey>(
@@ -69,12 +92,13 @@ export default function MeetingTabs({
   const byMeeting = (cards: GameCard[]) =>
     cards.filter((c) => cardMeeting(c) === meeting);
 
-  const data: Record<TabKey, GameCard[]> = {
-    prep: byMeeting(prep),
-    live: byMeeting(live),
-  };
-  const cards = data[activeTab];
+  // Games for the current meeting — both prep-time and live-time cards
+  // show together at the bottom regardless of mode, so kids don't have
+  // to switch tabs to find the "listen for these" game while the meeting
+  // is happening.
+  const meetingGames = [...byMeeting(prep), ...byMeeting(live)];
   const showStudy = meeting === "WATCHTOWER" && !!study;
+  const showWorkbook = meeting === "OCLM" && !!workbook;
   const meetingLabel = MEETINGS.find((m) => m.key === meeting)?.label ?? "";
 
   const navigateWeek = (direction: -1 | 1) => {
@@ -84,29 +108,6 @@ export default function MeetingTabs({
 
   return (
     <>
-      {/* Phase tabs */}
-      <div className="flex gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1 mb-3 w-fit">
-        {TABS.map((tab) => {
-          const count = data[tab.key].length;
-          return (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition ${
-                activeTab === tab.key
-                  ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-sm"
-                  : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
-              }`}
-            >
-              {tab.label}
-              {count > 0 && (
-                <span className="ml-1.5 text-xs opacity-60">({count})</span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
       {/* Which meeting */}
       <div className="flex flex-col gap-1 mb-6">
         <span className="text-xs font-medium text-zinc-400">
@@ -158,8 +159,8 @@ export default function MeetingTabs({
         )}
       </div>
 
-      {/* Watchtower study — weekend meeting only. Same pack/answers in both
-          tabs, so Meeting Live resumes whatever was prepared this week. */}
+      {/* Watchtower study — weekend meeting only. Panel self-manages a
+          study ↔ live mode with its own Save / Edit toggle. */}
       {showStudy && study && (
         <WatchtowerStudyPanel
           ageGroup={study.ageGroup}
@@ -171,31 +172,48 @@ export default function MeetingTabs({
           savedResponses={study.savedResponses}
           attribution={study.attribution}
           sourceUrl={study.sourceUrl}
-          live={activeTab === "live"}
         />
       )}
 
-      {/* Body */}
-      {cards.length === 0 ? (
-        showStudy ? (
+      {/* OCLM workbook — midweek meeting only. Panel self-manages the
+          study ↔ live mode with its own Save / Edit toggle. */}
+      {showWorkbook && workbook && (
+        <WorkbookPanel
+          ageGroup={workbook.ageGroup}
+          packId={workbook.packId}
+          title={workbook.title}
+          bibleReadingRange={workbook.bibleReadingRange}
+          bibleReadingAssignment={workbook.bibleReadingAssignment}
+          songs={workbook.songs}
+          sections={workbook.sections}
+          vocabulary={workbook.vocabulary}
+          attribution={workbook.attribution}
+          sourceUrl={workbook.sourceUrl}
+        />
+      )}
+
+      {/* Games for this meeting — always shown at the bottom regardless
+          of the panel's mode, so listening / bingo cards are one scroll
+          away during the actual meeting. */}
+      {meetingGames.length === 0 ? (
+        showStudy || showWorkbook ? (
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            No extra {activeTab === "live" ? "meeting" : "preparation"} games
-            for this meeting yet — the study above is ready.
+            No extra games for this meeting yet — the {showStudy ? "study" : "workbook"} above is ready.
           </p>
         ) : (
           <div className="text-center py-12">
             <p className="text-zinc-500 dark:text-zinc-400 text-lg">
-              No {meetingLabel}{" "}
-              {activeTab === "live" ? "meeting" : "preparation"} content for
-              this week yet.{" "}
-              {activeTab === "live"
-                ? "Check back before your next meeting!"
-                : "An admin needs to add this week's content."}
+              No {meetingLabel} content for this week yet. An admin needs to add this week's content.
             </p>
           </div>
         )
       ) : (
-        <GameCardGrid cards={cards} />
+        <>
+          <h3 className="mt-6 mb-3 text-sm font-semibold text-zinc-600 dark:text-zinc-300 uppercase tracking-wide">
+            Games for this meeting
+          </h3>
+          <GameCardGrid cards={meetingGames} />
+        </>
       )}
     </>
   );

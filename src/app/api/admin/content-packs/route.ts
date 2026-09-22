@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
-import { questionSchema } from "./_schemas";
+import { questionSchema, oclmSectionSchema } from "./_schemas";
+import { ingestPackVocabulary } from "@/lib/vocabulary-ingest";
 
 const createSchema = z.object({
   title: z.string().min(1),
@@ -26,6 +27,12 @@ const createSchema = z.object({
   sourceUrl: z.string().optional(),
   sourceDocId: z.string().optional(),
   attribution: z.string().optional(),
+  // OCLM workbook metadata — set when source=OCLM. JSON columns; admin-only.
+  publicationCode: z.string().optional(),
+  bibleReadingRange: z.object({ reference: z.string() }).optional(),
+  bibleReadingAssignment: z.object({ reference: z.string() }).optional(),
+  songs: z.array(z.number().int()).optional(),
+  sections: z.array(oclmSectionSchema).optional(),
 });
 
 export async function GET(req: Request) {
@@ -90,16 +97,57 @@ export async function POST(req: Request) {
       sourceUrl: data.sourceUrl,
       sourceDocId: data.sourceDocId,
       attribution: data.attribution,
+      publicationCode: data.publicationCode,
+      bibleReadingRange: data.bibleReadingRange,
+      bibleReadingAssignment: data.bibleReadingAssignment,
+      songs: data.songs,
+      sections: data.sections,
     },
   });
 
-  // Auto-generate game instances for compatible game engines
+  // Ingest this pack's vocabulary + key phrases into the shared catalog.
+  // Runs after create (so we have a packId to link) but before the auto-
+  // seeded game instances (which don't yet consume the catalog — they
+  // still read the pack's snapshot field). Failure here is logged but
+  // NOT fatal to pack creation.
+  try {
+    await ingestPackVocabulary(prisma, contentPack.id, {
+      vocabulary: data.vocabulary,
+      keyPhrases: data.keyPhrases,
+    });
+  } catch (e) {
+    console.error(
+      "[vocab-ingest] failed for pack",
+      contentPack.id,
+      e instanceof Error ? e.message : String(e),
+    );
+  }
+
+  // Auto-generate game instances for compatible game engines.
+  //
+  // For OCLM packs we synthesise a `keyPhrases` list from the imported
+  // workbook outline (part titles, scenario tags) so listening games
+  // (Meeting Bingo, Tap When You Hear) can auto-seed without admin
+  // curation. The synthesised list is only used for compatibility
+  // checking; the persisted pack still has whatever was sent in.
   if (generateInstances) {
     const games = await prisma.game.findMany({ where: { isActive: true } });
 
+    const seedingData = {
+      source: data.source,
+      vocabulary: data.vocabulary,
+      scriptures: data.scriptures,
+      questions: data.questions,
+      keyPeople: data.keyPeople,
+      keyPhrases:
+        data.source === "OCLM"
+          ? derivedOclmKeyPhrases(data)
+          : data.keyPhrases,
+    };
+
     const instancesToCreate = [];
     for (const game of games) {
-      const compatible = isGameCompatible(game.slug, data);
+      const compatible = isGameCompatible(game.slug, seedingData);
       if (compatible) {
         instancesToCreate.push({
           gameId: game.id,
@@ -123,6 +171,29 @@ export async function POST(req: Request) {
 }
 
 /**
+ * Build "things you'll hear at this meeting" phrases from an OCLM pack:
+ * part titles + ministry scenario tags + existing keyPhrases (if any).
+ * These power Meeting Bingo cards and Tap-When-You-Hear without manual
+ * authoring. We intentionally do NOT pull from body prose — only the
+ * functional headings the chairman/conductor actually announces.
+ */
+function derivedOclmKeyPhrases(data: {
+  keyPhrases: string[];
+  sections?: Array<{
+    parts: Array<{ title: string; scenarioTag?: string }>;
+  }>;
+}): string[] {
+  const out = new Set<string>(data.keyPhrases);
+  for (const s of data.sections ?? []) {
+    for (const p of s.parts) {
+      if (p.title) out.add(p.title);
+      if (p.scenarioTag) out.add(p.scenarioTag);
+    }
+  }
+  return [...out];
+}
+
+/**
  * Listening / participation games that only make sense during the live
  * meeting. Their instances are forced to MEETING_LIVE on creation, even
  * if the pack itself was filed as MEETING_PREP.
@@ -138,7 +209,7 @@ const ALWAYS_LIVE_GAMES = new Set([
  */
 function isGameCompatible(
   slug: string,
-  data: { vocabulary: string[]; scriptures: unknown[]; questions: unknown[]; keyPeople: string[]; keyPhrases: string[] }
+  data: { source: string; vocabulary: string[]; scriptures: unknown[]; questions: unknown[]; keyPeople: string[]; keyPhrases: string[] }
 ): boolean {
   switch (slug) {
     case "bible-word-search":
@@ -164,6 +235,10 @@ function isGameCompatible(
       return data.keyPhrases.length >= 9;
     case "tap-when-you-hear":
       return data.keyPhrases.length >= 5 || data.vocabulary.length >= 5;
+    // Meeting-week bonus game — new maze per OCLM pack, no content required.
+    // Skipped for Daily Text / Watchtower to avoid 396 extra instances.
+    case "meeting-maze":
+      return data.source === "OCLM";
     case "coloring-page":
       return false; // Requires uploaded images, not auto-generated
     default:

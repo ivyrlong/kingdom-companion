@@ -56,7 +56,12 @@ export function getEncyclopediaCapabilities(
         receivesCurated: receiveCurated,
         canAuthor: true,
         mode: "STUDY",
-        showSilhouettes: false,
+        // Even the Study Notebook shows silhouettes of un-collected
+        // entries now — an ADULT viewer (parent, admin) wants to see
+        // what's in the library to plan family studies, and the age-
+        // gate philosophy pivoted to "every entry visible to every
+        // viewer, content adapts via contentByTier."
+        showSilhouettes: true,
       };
     case "YOUTH":
     case "FAMILY":

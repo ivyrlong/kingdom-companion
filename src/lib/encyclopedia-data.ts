@@ -1,8 +1,5 @@
 import { prisma } from "@/lib/db";
-import {
-  getEncyclopediaCapabilities,
-  curatedAgeFilter,
-} from "@/lib/encyclopedia";
+import { getEncyclopediaCapabilities } from "@/lib/encyclopedia";
 import type {
   EncyclopediaItem,
   EncyclopediaCaps,
@@ -38,19 +35,41 @@ export async function loadEncyclopediaBundle(
   if (!user) return null;
 
   const ageGroup = user.ageGroup;
-  const caps = getEncyclopediaCapabilities(ageGroup, user.profile ?? undefined);
-  if (!caps.enabled) return null;
+  const baseCaps = getEncyclopediaCapabilities(
+    ageGroup,
+    user.profile ?? undefined,
+  );
+  if (!baseCaps.enabled) return null;
+  // Add the viewer's age group to caps so downstream renderers can pick
+  // the matching tier out of contentByTier for each entry. The pure
+  // capabilities function stays focused on capabilities; this bundle
+  // stitches in the viewer identity.
+  const caps = {
+    ...baseCaps,
+    viewerAgeGroup: ageGroup as
+      | "LITTLE_ONES"
+      | "YOUTH"
+      | "ADULT"
+      | "FAMILY",
+  };
 
   const items: EncyclopediaItem[] = [];
 
   if (caps.receivesCurated) {
     const [entries, collections] = await Promise.all([
       prisma.encyclopediaEntry.findMany({
-        where: {
-          isActive: true,
-          ageGroup: { in: curatedAgeFilter(ageGroup) as never },
-        },
+        // Every entry is available to every viewer — the age adaptation
+        // happens through contentByTier at render time, not by hiding
+        // rows. `ageGroup` on the entry is now informational (used only
+        // to pick a default tier when contentByTier is absent).
+        where: { isActive: true },
         orderBy: { term: "asc" },
+        include: {
+          // Linked sticker (BIBLE_CHARACTER-kind entries have one) —
+          // its path is preferred over the free-form imageUrl when
+          // present because it's the collectable art the user earned.
+          sticker: { select: { path: true } },
+        },
       }),
       prisma.userEncyclopediaCollection.findMany({
         where: { userId },
@@ -65,18 +84,29 @@ export async function loadEncyclopediaBundle(
     const byEntry = new Map(collections.map((c) => [c.entryId, c]));
     for (const e of entries) {
       const c = byEntry.get(e.id);
+      // Prefer the linked sticker's path when present; otherwise fall
+      // back to the imageUrl the admin uploaded via the image library.
+      const imageUrl = e.sticker?.path
+        ? `/${e.sticker.path}`
+        : e.imageUrl;
       items.push({
         id: e.id,
         slug: e.slug,
         term: e.term,
         definition: e.definition,
-        imageUrl: e.imageUrl,
+        imageUrl,
         bibleRef: e.bibleRef,
         category: e.category as EncyclopediaItem["category"],
         collectedAt: c ? c.collectedAt.toISOString() : null,
         viewedAt: c?.viewedAt ? c.viewedAt.toISOString() : null,
         source: c?.source ?? null,
         kind: "curated",
+        // Rich content — nullable. Falls back to `definition` in the UI
+        // when a tier for the viewer's ageGroup isn't present.
+        era: e.era,
+        timeline: e.timeline as EncyclopediaItem["timeline"],
+        locations: e.locations,
+        contentByTier: e.contentByTier as EncyclopediaItem["contentByTier"],
       });
     }
   }

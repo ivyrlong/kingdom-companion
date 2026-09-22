@@ -8,6 +8,7 @@ export interface EncyclopediaItem {
   id: string;
   slug: string;
   term: string;
+  /** Fallback text when contentByTier for the viewer's tier isn't present. */
   definition: string;
   imageUrl: string | null;
   bibleRef: string | null;
@@ -16,6 +17,28 @@ export interface EncyclopediaItem {
   viewedAt: string | null; // ISO; null + collected = still "New"
   source: string | null; // game slug it was found in
   kind: "curated" | "personal";
+  /** Optional richer fields — populated for Bible-character-style entries. */
+  era?: string | null;
+  timeline?: Array<{ when: string; event: string }> | null;
+  locations?: string[];
+  /** Three-tier language content. When present, prefer over `definition`. */
+  contentByTier?: {
+    littleOnes?: TierContent;
+    youth?: TierContent;
+    adult?: TierContent;
+  } | null;
+}
+
+export interface TierContent {
+  shortDescription?: string;
+  longBlurb?: string;
+  trivia?: Array<{
+    question: string;
+    answer: string;
+    bibleRef?: string;
+    source?: "rewritten" | "derived";
+  }>;
+  cluesHardToEasy?: string[];
 }
 
 export interface EncyclopediaCaps {
@@ -24,6 +47,29 @@ export interface EncyclopediaCaps {
   mode: "PLAYFUL" | "STUDY";
   showSilhouettes: boolean;
   receivesCurated: boolean;
+  /** Viewer's age group — used to pick the right tier from contentByTier. */
+  viewerAgeGroup?: "LITTLE_ONES" | "YOUTH" | "ADULT" | "FAMILY";
+}
+
+/** Pick the right tier's content for the current viewer. FAMILY defaults to
+ *  youth (safe middle when a whole family shares a device). Falls through
+ *  gracefully if the specific tier isn't populated. */
+export function pickTier(
+  item: EncyclopediaItem,
+  ageGroup: EncyclopediaCaps["viewerAgeGroup"],
+): TierContent | null {
+  const c = item.contentByTier;
+  if (!c) return null;
+  switch (ageGroup) {
+    case "LITTLE_ONES":
+      return c.littleOnes ?? c.youth ?? c.adult ?? null;
+    case "ADULT":
+      return c.adult ?? c.youth ?? c.littleOnes ?? null;
+    case "YOUTH":
+    case "FAMILY":
+    default:
+      return c.youth ?? c.adult ?? c.littleOnes ?? null;
+  }
 }
 
 const CATEGORIES = ["PEOPLE", "PLACES", "THINGS", "EVENTS"] as const;
@@ -428,16 +474,47 @@ export default function MyEncyclopedia({
           {visibleItems.map((item) => {
             if (!isCollected(item)) {
               const lk = LOCKED[item.category] ?? LOCKED.THINGS;
+              // When we have a linked-sticker or imageUrl, render the
+              // actual sticker as a silhouette — brightness(0) collapses
+              // the RGB channels to black but PNG alpha is preserved, so
+              // the character shape is visible in solid dark. Falls back
+              // to a plain "?" tile for entries with no art yet.
+              const silhouetteSrc = item.imageUrl
+                ? item.imageUrl.startsWith("/")
+                  ? item.imageUrl
+                  : `/${item.imageUrl}`
+                : null;
               return (
                 <div
                   key={item.id}
                   title="Keep playing to find this one!"
-                  className={`aspect-square rounded-2xl border-2 border-dashed flex flex-col items-center justify-center text-center px-2 select-none ${lk.ring}`}
+                  className={`relative aspect-square rounded-2xl border-2 border-dashed flex flex-col items-center justify-center text-center px-2 select-none overflow-hidden ${lk.ring}`}
                 >
-                  <span className="text-4xl font-black opacity-60">?</span>
-                  <span className="text-[10px] mt-1 font-semibold">
-                    {lk.label}
-                  </span>
+                  {silhouetteSrc ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={silhouetteSrc}
+                        alt=""
+                        aria-hidden
+                        className="absolute inset-2 max-w-[calc(100%-1rem)] max-h-[calc(100%-1rem)] w-auto h-auto m-auto object-contain opacity-40"
+                        style={{ filter: "brightness(0)" }}
+                      />
+                      <span className="relative text-4xl font-black opacity-70 drop-shadow-sm">
+                        ?
+                      </span>
+                      <span className="relative text-[10px] mt-1 font-semibold">
+                        {lk.label}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-4xl font-black opacity-60">?</span>
+                      <span className="text-[10px] mt-1 font-semibold">
+                        {lk.label}
+                      </span>
+                    </>
+                  )}
                 </div>
               );
             }
@@ -491,6 +568,7 @@ export default function MyEncyclopedia({
       {popup && (
         <EntryModal
           entry={popup.list[popup.index]}
+          caps={caps}
           hasPrev={popup.index > 0}
           hasNext={popup.index < popup.list.length - 1}
           onPrev={() => navigate(-1)}
@@ -526,6 +604,7 @@ export default function MyEncyclopedia({
 
 function EntryModal({
   entry,
+  caps,
   hasPrev,
   hasNext,
   onPrev,
@@ -536,6 +615,7 @@ function EntryModal({
   onDelete,
 }: {
   entry: EncyclopediaItem;
+  caps: EncyclopediaCaps;
   hasPrev: boolean;
   hasNext: boolean;
   onPrev: () => void;
@@ -591,9 +671,22 @@ function EntryModal({
           <h3 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50 mb-2">
             {entry.term}
           </h3>
-          <p className="text-sm text-zinc-700 dark:text-zinc-300 mb-2 whitespace-pre-wrap">
-            {entry.definition}
-          </p>
+          {(() => {
+            // Prefer tiered content for the viewer's age when present;
+            // fall back to the plain definition otherwise.
+            const tier = pickTier(entry, caps.viewerAgeGroup);
+            const body = tier?.longBlurb ?? tier?.shortDescription ?? entry.definition;
+            return (
+              <p className="text-sm text-zinc-700 dark:text-zinc-300 mb-2 whitespace-pre-wrap">
+                {body}
+              </p>
+            );
+          })()}
+          {entry.era && (
+            <p className="text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400 font-semibold mb-2">
+              {entry.era}
+            </p>
+          )}
           {entry.bibleRef && (
             <p className="text-xs font-semibold text-coral-600 dark:text-coral-400 italic mb-3">
               {entry.bibleRef}
