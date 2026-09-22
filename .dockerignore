@@ -11,6 +11,8 @@ docker-compose.yml.bak
 !.env.example
 data
 docs
-prompts
+# prompts/ IS needed at runtime — seed-characters.ts reads
+# prompts/characters.md to populate the Character table. Do not
+# gitignore it or the seed silently no-ops on a fresh deploy.
 public/uploads
 README.md
