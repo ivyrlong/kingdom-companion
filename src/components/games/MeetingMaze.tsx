@@ -147,15 +147,22 @@ export default function MeetingMaze({
 
       <Confetti active={solved} duration={2000} count={80} />
 
+      {/* Wrap the SVG in a square box that shrinks with the viewport.
+          Dropping the explicit svg width/height and letting the box own
+          the size keeps CELL_PX-based internal geometry while making
+          Youth (12×12) and Adult (15×15) mazes fit a 375px phone shell
+          — they used to render at a fixed 387px / 483px and the whole
+          page scrolled horizontally. */}
       <div
-        className="mx-auto touch-none select-none inline-block"
+        className="mx-auto touch-none select-none w-full max-w-[500px] aspect-square"
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
       >
         <svg
-          width={svgSize}
-          height={svgSize}
+          width="100%"
+          height="100%"
           viewBox={`0 0 ${svgSize} ${svgSize}`}
+          preserveAspectRatio="xMidYMid meet"
           className="bg-white dark:bg-zinc-900 rounded-lg shadow-inner border border-zinc-200 dark:border-zinc-800"
           role="img"
           aria-label="Maze puzzle"

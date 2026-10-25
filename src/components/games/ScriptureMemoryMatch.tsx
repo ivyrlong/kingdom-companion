@@ -276,13 +276,11 @@ export default function ScriptureMemoryMatch({ gameId, userId, contentPack }: Pr
     );
   }
 
-  // Playing screen
-  const gridCols =
-    pairCount <= 4
-      ? "grid-cols-4"
-      : pairCount <= 6
-        ? "grid-cols-4"
-        : "grid-cols-4";
+  // Playing screen. 3 cols on phone, 4 on sm+ regardless of pair count —
+  // at hard (16 cards) the previous 4-col layout squeezed cards to
+  // ~77px wide with xs verse text, below the comfortable tap and
+  // readability threshold on a 375px screen.
+  const gridCols = "grid-cols-3 sm:grid-cols-4";
 
   return (
     <div>

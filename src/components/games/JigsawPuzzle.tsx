@@ -257,7 +257,16 @@ export default function JigsawPuzzle({
     []
   );
 
-  /* ---------- Pointer-based drag & drop ---------- */
+  /* ---------- Pointer-based drag & drop ----------
+     Move/up listeners are attached to the window inside pointerdown
+     and removed in up/cancel. The earlier shape bound them to the
+     tray piece element itself (per-tile), which combined with
+     setPointerCapture would silently drop the drag on iOS Safari
+     whenever the finger left the source tile faster than the capture
+     could keep up. Hoisting them to window makes the drag track the
+     finger all the way to the board regardless of path. */
+  const dragTrayEl = useRef<HTMLDivElement | null>(null);
+
   const handlePiecePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>, pieceId: number) => {
       // Prevent starting a drag from a piece that's already on the board
@@ -265,7 +274,7 @@ export default function JigsawPuzzle({
       if (!tray.includes(pieceId)) return;
 
       const target = e.currentTarget;
-      target.setPointerCapture(e.pointerId);
+      dragTrayEl.current = target;
       dragPieceId.current = pieceId;
 
       const rect = target.getBoundingClientRect();
@@ -308,67 +317,63 @@ export default function JigsawPuzzle({
       // Visually hide the tray piece
       target.style.opacity = "0.3";
 
-      e.preventDefault();
-    },
-    [tray, cellSizePx, boardSizePx, resolvedImage]
-  );
+      const onMove = (ev: PointerEvent) => {
+        if (!dragGhost.current) return;
+        dragGhost.current.style.left = `${ev.clientX - dragOffset.current.x}px`;
+        dragGhost.current.style.top = `${ev.clientY - dragOffset.current.y}px`;
+      };
 
-  const handlePiecePointerMove = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      if (dragPieceId.current === null || !dragGhost.current) return;
-      dragGhost.current.style.left = `${e.clientX - dragOffset.current.x}px`;
-      dragGhost.current.style.top = `${e.clientY - dragOffset.current.y}px`;
-    },
-    []
-  );
+      const onUp = (ev: PointerEvent) => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointercancel", onUp);
 
-  const handlePiecePointerUp = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      const pieceId = dragPieceId.current;
-      if (pieceId === null) return;
+        const idAtDrop = dragPieceId.current;
 
-      // Restore tray piece opacity
-      e.currentTarget.style.opacity = "1";
+        // Restore tray piece opacity via the ref — we can't rely on
+        // e.currentTarget any more because this handler runs on window.
+        if (dragTrayEl.current) {
+          dragTrayEl.current.style.opacity = "1";
+          dragTrayEl.current = null;
+        }
 
-      // Remove ghost
-      if (dragGhost.current) {
-        document.body.removeChild(dragGhost.current);
-        dragGhost.current = null;
-      }
+        if (dragGhost.current) {
+          document.body.removeChild(dragGhost.current);
+          dragGhost.current = null;
+        }
 
-      // Determine which board cell we're over
-      const boardEl = boardRef.current;
-      if (boardEl) {
-        const boardRect = boardEl.getBoundingClientRect();
-        const dropX = e.clientX - boardRect.left;
-        const dropY = e.clientY - boardRect.top;
-
-        // Snap threshold: 60% of cell size
-        const snapThreshold = cellSizePx * 0.6;
-
-        const col = Math.round(dropX / cellSizePx - 0.5);
-        const row = Math.round(dropY / cellSizePx - 0.5);
-
-        if (row >= 0 && row < gridSize && col >= 0 && col < gridSize) {
-          // Check if close enough to snap
-          const cellCenterX = (col + 0.5) * cellSizePx;
-          const cellCenterY = (row + 0.5) * cellSizePx;
-          const pieceCenterX = dropX;
-          const pieceCenterY = dropY;
-          const dist = Math.sqrt(
-            (cellCenterX - pieceCenterX) ** 2 +
-              (cellCenterY - pieceCenterY) ** 2
-          );
-
-          if (dist < snapThreshold) {
-            placePiece(pieceId, row, col);
+        if (idAtDrop !== null) {
+          const boardEl = boardRef.current;
+          if (boardEl) {
+            const boardRect = boardEl.getBoundingClientRect();
+            const dropX = ev.clientX - boardRect.left;
+            const dropY = ev.clientY - boardRect.top;
+            const snapThreshold = cellSizePx * 0.6;
+            const col = Math.round(dropX / cellSizePx - 0.5);
+            const row = Math.round(dropY / cellSizePx - 0.5);
+            if (row >= 0 && row < gridSize && col >= 0 && col < gridSize) {
+              const cellCenterX = (col + 0.5) * cellSizePx;
+              const cellCenterY = (row + 0.5) * cellSizePx;
+              const dist = Math.sqrt(
+                (cellCenterX - dropX) ** 2 + (cellCenterY - dropY) ** 2,
+              );
+              if (dist < snapThreshold) {
+                placePiece(idAtDrop, row, col);
+              }
+            }
           }
         }
-      }
 
-      dragPieceId.current = null;
+        dragPieceId.current = null;
+      };
+
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+      window.addEventListener("pointercancel", onUp);
+
+      e.preventDefault();
     },
-    [cellSizePx, gridSize, placePiece]
+    [tray, cellSizePx, boardSizePx, resolvedImage, gridSize, placePiece],
   );
 
   /* ---------- Render helpers ---------- */
@@ -616,8 +621,6 @@ export default function JigsawPuzzle({
                 key={pieceId}
                 onClick={() => handleTrayPieceTap(pieceId)}
                 onPointerDown={(e) => handlePiecePointerDown(e, pieceId)}
-                onPointerMove={handlePiecePointerMove}
-                onPointerUp={handlePiecePointerUp}
                 className={`flex-shrink-0 rounded-md cursor-grab active:cursor-grabbing shadow-md hover:shadow-lg transition-shadow touch-none select-none ${
                   isSelected
                     ? "ring-3 ring-coral-500 dark:ring-coral-400 ring-offset-2 ring-offset-zinc-100 dark:ring-offset-zinc-800"

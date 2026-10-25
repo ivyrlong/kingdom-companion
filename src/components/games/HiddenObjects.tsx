@@ -239,9 +239,12 @@ export default function HiddenObjects() {
         </div>
       </div>
 
-      {/* Canvas */}
+      {/* Canvas. Taller aspect on phone (3:2 vs 2:1) so sticker tap
+          targets stay reachable — a 0.5× sticker in a 343×172 box is
+          only ~17px wide, below the usable touch minimum. The
+          desktop-sized 2:1 kicks back in at sm (640px+). */}
       <div
-        className="relative aspect-[2/1] w-full rounded-2xl overflow-hidden shadow-lg border border-zinc-200 dark:border-zinc-800 select-none touch-none"
+        className="relative aspect-[3/2] sm:aspect-[2/1] w-full rounded-2xl overflow-hidden shadow-lg border border-zinc-200 dark:border-zinc-800 select-none touch-none"
         style={{
           backgroundImage: `url(/${round.scene.path})`,
           backgroundSize: "cover",

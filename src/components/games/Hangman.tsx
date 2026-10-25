@@ -57,13 +57,20 @@ function shuffleArray<T>(arr: T[]): T[] {
 function drawHangman(
   canvas: HTMLCanvasElement,
   wrongCount: number,
-  isDark: boolean
+  isDark: boolean,
+  cssWidth: number,
+  cssHeight: number,
 ) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
-  const w = canvas.width;
-  const h = canvas.height;
+  // Use CSS pixel dimensions, not canvas.width/height. The caller sets
+  // canvas.width = cssWidth * DPR and calls ctx.scale(DPR, DPR), so the
+  // backing store is DPR-scaled and the draw context is scaled too —
+  // reading canvas.width here would multiply coords by DPR a second time
+  // and push the figure off the visible area on Retina phones.
+  const w = cssWidth;
+  const h = cssHeight;
   ctx.clearRect(0, 0, w, h);
 
   // Colors from coral palette
@@ -265,7 +272,7 @@ export default function Hangman({ gameId, userId, contentPack, ageGroup }: Props
     const ctx = canvas.getContext("2d");
     if (ctx) ctx.scale(dpr, dpr);
 
-    drawHangman(canvas, wrongCount, isDarkRef.current);
+    drawHangman(canvas, wrongCount, isDarkRef.current, rect.width, rect.height);
   }, [wrongCount, status, roundOver]);
 
   // Physical keyboard support
