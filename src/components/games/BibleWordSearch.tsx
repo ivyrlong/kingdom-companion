@@ -233,6 +233,41 @@ export default function BibleWordSearch({ gameId, userId, contentPack, ageGroup 
     setSelectedCells(cells);
   };
 
+  // Resolve the (row, col) under a touch point by reading data-rc on the
+  // cell DOM node. React's onTouchMove on the cell that was first touched
+  // doesn't fire for cells the finger subsequently enters — so we hit-test
+  // every move via elementFromPoint and extend selection from there.
+  const cellFromTouch = (clientX: number, clientY: number): [number, number] | null => {
+    const el = document.elementFromPoint(clientX, clientY);
+    const cell = el?.closest<HTMLElement>("[data-rc]");
+    if (!cell) return null;
+    const parts = cell.dataset.rc?.split(",");
+    if (!parts || parts.length !== 2) return null;
+    const r = parseInt(parts[0], 10);
+    const c = parseInt(parts[1], 10);
+    if (Number.isNaN(r) || Number.isNaN(c)) return null;
+    return [r, c];
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0];
+    if (!t) return;
+    const rc = cellFromTouch(t.clientX, t.clientY);
+    if (!rc) return;
+    e.preventDefault();
+    handleCellMouseDown(rc[0], rc[1]);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isSelecting) return;
+    const t = e.touches[0];
+    if (!t) return;
+    const rc = cellFromTouch(t.clientX, t.clientY);
+    if (!rc) return;
+    e.preventDefault();
+    handleCellMouseEnter(rc[0], rc[1]);
+  };
+
   const handleMouseUp = () => {
     if (isSelecting && selectedCells.length > 1) {
       checkSelection(selectedCells);
@@ -361,13 +396,23 @@ export default function BibleWordSearch({ gameId, userId, contentPack, ageGroup 
         })}
       </div>
 
-      {/* Grid */}
+      {/* Grid — grid (block), not inline-grid, so cells scale with the
+          container width on phone. aspect-square keeps cells square, and
+          touchAction:"none" lets us hijack the swipe for selection
+          without the browser treating it as a page scroll. */}
       <div
         ref={gridRef}
-        className="inline-grid gap-0 select-none"
-        style={{ gridTemplateColumns: `repeat(${grid[0]?.length ?? 0}, 1fr)` }}
+        className="grid gap-0 select-none max-w-full mx-auto"
+        style={{
+          gridTemplateColumns: `repeat(${grid[0]?.length ?? 0}, minmax(0, 1fr))`,
+          touchAction: "none",
+        }}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleMouseUp}
+        onTouchCancel={handleMouseUp}
       >
         {grid.map((row, r) =>
           row.map((cell, c) => {
@@ -378,9 +423,10 @@ export default function BibleWordSearch({ gameId, userId, contentPack, ageGroup 
             return (
               <div
                 key={key}
+                data-rc={`${r},${c}`}
                 onMouseDown={() => handleCellMouseDown(r, c)}
                 onMouseEnter={() => handleCellMouseEnter(r, c)}
-                className={`w-8 h-8 flex items-center justify-center text-sm font-bold cursor-pointer transition-colors ${
+                className={`aspect-square flex items-center justify-center text-xs sm:text-sm font-bold cursor-pointer transition-colors ${
                   isFound
                     ? "bg-coral-200 dark:bg-coral-800 text-coral-800 dark:text-coral-200"
                     : isSelected
