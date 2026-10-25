@@ -354,7 +354,10 @@ function SVGColoringMode({
           id="coloring-svg"
           viewBox={viewBox}
           className="w-full h-auto"
-          style={{ maxHeight: "70vh" }}
+          // touch-action: manipulation disables the browser's double-tap
+          // zoom gesture so a quick tap-tap on a region (changing colors
+          // in a hurry) doesn't accidentally zoom the whole page.
+          style={{ maxHeight: "70vh", touchAction: "manipulation" }}
         >
           {/* White background */}
           <rect width="100%" height="100%" fill="white" />
@@ -662,16 +665,18 @@ function CanvasColoringMode({
 
         <div className="w-px h-6 bg-zinc-300 dark:bg-zinc-700 mx-1" />
 
-        {/* Brush size */}
-        <label className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300">
-          Size
+        {/* Brush size — hide the "Size" word label on phone (space tight)
+            and shrink the slider so the whole toolbar wraps to at most
+            two rows at 375px wide instead of three or four. */}
+        <label className="flex items-center gap-1.5 text-sm text-zinc-600 dark:text-zinc-300">
+          <span className="hidden sm:inline">Size</span>
           <input
             type="range"
             min={minBrushSize}
             max={maxBrushSize}
             value={brushSize}
             onChange={(e) => setBrushSize(Number(e.target.value))}
-            className="w-24 accent-coral-600"
+            className="w-16 sm:w-24 accent-coral-600"
           />
           <span className="text-xs tabular-nums w-6 text-right">{brushSize}</span>
         </label>
@@ -680,15 +685,15 @@ function CanvasColoringMode({
         {showOpacity && (
           <>
             <div className="w-px h-6 bg-zinc-300 dark:bg-zinc-700 mx-1" />
-            <label className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300">
-              Opacity
+            <label className="flex items-center gap-1.5 text-sm text-zinc-600 dark:text-zinc-300">
+              <span className="hidden sm:inline">Opacity</span>
               <input
                 type="range"
                 min={10}
                 max={100}
                 value={Math.round(opacity * 100)}
                 onChange={(e) => setOpacity(Number(e.target.value) / 100)}
-                className="w-20 accent-violet-600"
+                className="w-14 sm:w-20 accent-violet-600"
               />
               <span className="text-xs tabular-nums w-8 text-right">
                 {Math.round(opacity * 100)}%

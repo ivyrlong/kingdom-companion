@@ -756,11 +756,15 @@ export default function Crossword({ gameId, userId, contentPack, ageGroup }: Pro
   /* ── Dynamic cell size ──────────────────────────────────────────── */
 
   const cellSize = useMemo(() => {
-    // Aim for a grid that fits within ~360px on mobile
+    // Aim for a grid that fits within ~340px on mobile (343px shell on
+    // iPhone with 16px side padding). Floor lowered from 28 → 24 so an
+    // 11-column puzzle still fits without horizontal page scroll —
+    // 24px is still legible and tappable in combination with the
+    // keyboard below handling text input.
     if (gridCols === 0) return 36;
-    const maxWidth = 360;
+    const maxWidth = 340;
     const size = Math.floor(maxWidth / gridCols);
-    return Math.max(28, Math.min(44, size));
+    return Math.max(24, Math.min(44, size));
   }, [gridCols]);
 
   /* ════════════════════════════════════════════════════════════════════
@@ -1063,7 +1067,7 @@ export default function Crossword({ gameId, userId, contentPack, ageGroup }: Pro
               <button
                 key={letter}
                 onClick={() => handleLetterInput(letter)}
-                className="h-10 w-8 sm:w-9 text-sm font-bold bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200
+                className="h-10 w-7 sm:w-9 text-sm font-bold bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200
                   border border-zinc-300 dark:border-zinc-600 rounded-lg
                   hover:bg-coral-50 dark:hover:bg-coral-900/20
                   active:bg-coral-200 dark:active:bg-coral-800 active:scale-95 transition"
