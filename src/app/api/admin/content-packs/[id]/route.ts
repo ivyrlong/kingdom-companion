@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
 import { questionSchema, oclmSectionSchema } from "../_schemas";
+import { fillScriptureTexts } from "@/lib/bible-verses";
 
 const updateSchema = z.object({
   title: z.string().min(1).optional(),
@@ -97,10 +98,17 @@ export async function PATCH(
     );
   }
 
+  // If scriptures are being updated, dedupe + fill text verbatim from
+  // the BibleVerse catalog (admin-supplied text still wins).
+  const data: typeof parsed.data = { ...parsed.data };
+  if (data.scriptures) {
+    data.scriptures = await fillScriptureTexts(prisma, data.scriptures);
+  }
+
   try {
     const updated = await prisma.contentPack.update({
       where: { id },
-      data: parsed.data,
+      data,
     });
     return NextResponse.json(updated);
   } catch (e: unknown) {

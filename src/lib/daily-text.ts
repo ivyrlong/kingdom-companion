@@ -35,6 +35,7 @@ import { prisma } from "@/lib/db";
 import { parseDailyText } from "@/lib/content-parser";
 import { rejoinLineBreakHyphens } from "@/lib/text-cleanup";
 import { toCitation, type ScriptureCitation } from "@/lib/scripture";
+import { fillScriptureTexts } from "@/lib/bible-verses";
 
 // ── Tier shapes ───────────────────────────────────────────────────────
 
@@ -321,6 +322,15 @@ export async function createOrReplaceDailyText(
 
   const extracted = parseDailyText(scriptureRef, scriptureText, derivedProse);
 
+  // Normalise the reference label through the catalog-aware helper.
+  // Admin-pasted scriptureText already wins (fillScriptureTexts only
+  // overwrites empty text), but the helper does rewrite the reference
+  // to its canonical parsed form so daily packs match the shape of
+  // every other import pipeline.
+  const packScriptures = await fillScriptureTexts(prisma, [
+    { reference: scriptureRef, text: scriptureText },
+  ]);
+
   const dateStr = date.toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
@@ -369,7 +379,7 @@ export async function createOrReplaceDailyText(
         simplifiedComment: tiers.littleOnes?.summary ?? null,
         featuredGameSlug,
         vocabulary: extracted.vocabulary,
-        scriptures: [{ reference: scriptureRef, text: scriptureText }],
+        scriptures: packScriptures as unknown as Prisma.InputJsonValue,
         keyPeople: extracted.keyPeople,
         themes: extracted.themes,
         questions: extracted.questions,

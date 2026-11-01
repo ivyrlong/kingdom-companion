@@ -4,6 +4,8 @@ import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useGameSession } from "@/hooks/useGameSession";
 import type { GameProps } from "@/app/(dashboard)/games/[slug]/page";
 import Confetti from "@/components/Confetti";
+import { fetchCatalogWords } from "@/lib/game-vocab";
+import { useSessionWordHistory } from "@/hooks/useSessionWordHistory";
 
 type Props = GameProps;
 
@@ -133,8 +135,16 @@ function buildCipher(phrase: string): Map<string, string> {
   throw new Error("Cryptogram failed to build a valid cipher after 5 tries");
 }
 
-/** Gather phrases from a content pack or fall back to defaults. */
-function gatherPhrases(contentPack?: Props["contentPack"]): string[] {
+/**
+ * Gather phrases from a content pack, the shared catalog, or the
+ * hardcoded defaults — in that order of preference. `catalogPhrases`
+ * comes from /api/vocabulary/random?type=PHRASE and feeds standalone
+ * play when no pack is attached.
+ */
+function gatherPhrases(
+  contentPack: Props["contentPack"] | undefined,
+  catalogPhrases: string[],
+): string[] {
   if (contentPack) {
     const phrases: string[] = [];
 
@@ -166,6 +176,18 @@ function gatherPhrases(contentPack?: Props["contentPack"]): string[] {
       (p) => uniqueLettersOf(p).length <= CIPHER_SYMBOLS.length
     );
     if (usable.length > 0) return shuffle(usable);
+  }
+
+  if (catalogPhrases.length > 0) {
+    const normalized = catalogPhrases
+      .map((p) => p.toUpperCase().trim())
+      .filter(
+        (p) =>
+          p.length >= 4 &&
+          p.length <= 40 &&
+          uniqueLettersOf(p).length <= CIPHER_SYMBOLS.length,
+      );
+    if (normalized.length > 0) return shuffle(normalized);
   }
 
   return shuffle(DEFAULT_PHRASES);
@@ -204,7 +226,25 @@ export default function Cryptogram({ gameId, userId, contentPack }: GameProps) {
   const [showConfetti, setShowConfetti] = useState(false);
   const [roundComplete, setRoundComplete] = useState(false);
 
+  // Shared PHRASE catalog, fetched once on mount — fuels standalone
+  // play. Each session also uses a localStorage-backed anti-repeat
+  // store so the same phrases don't recur between sessions.
+  const [catalogPhrases, setCatalogPhrases] = useState<string[]>([]);
+  const phraseHistory = useSessionWordHistory("cryptogram");
+
   const shakeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchCatalogWords({ type: "PHRASE", limit: 100, minLen: 6, maxLen: 40 })
+      .then((phrases) => {
+        if (!cancelled) setCatalogPhrases(phrases);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const phrase = allPhrases[roundIndex] ?? "";
 
@@ -253,7 +293,13 @@ export default function Cryptogram({ gameId, userId, contentPack }: GameProps) {
 
   // --- start game -----------------------------------------------
   const startGame = useCallback(async () => {
-    const phrases = gatherPhrases(contentPack);
+    const candidatePool = gatherPhrases(contentPack, catalogPhrases);
+    // Pull a fresh MAX_ROUNDS-sized slice avoiding phrases already
+    // used in prior local sessions. pickFresh resets the history
+    // automatically once the pool is exhausted.
+    const picked = phraseHistory.pickFresh(candidatePool, MAX_ROUNDS);
+    phraseHistory.markUsed(picked);
+    const phrases = picked.length > 0 ? picked : candidatePool;
     setAllPhrases(phrases);
     setRoundIndex(0);
     setTotalScore(0);
@@ -269,7 +315,7 @@ export default function Cryptogram({ gameId, userId, contentPack }: GameProps) {
     setRoundComplete(false);
 
     await startSession();
-  }, [startSession, contentPack]);
+  }, [startSession, contentPack, catalogPhrases, phraseHistory]);
 
   // --- advance round / detect solve -----------------------------
   useEffect(() => {

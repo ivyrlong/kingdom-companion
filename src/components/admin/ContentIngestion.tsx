@@ -231,11 +231,18 @@ export default function ContentIngestion() {
 
       const data = await res.json();
       setVocabulary(data.vocabulary || []);
+      // /api/admin/parse now returns {reference, text}[] (text filled
+      // from the BibleVerse catalog). Legacy string[] still works for
+      // older responses.
       setScriptures(
-        (data.scriptures || []).map((ref: string) => ({
-          reference: ref,
-          text: "",
-        }))
+        (data.scriptures || []).map(
+          (
+            s: string | { reference: string; text?: string },
+          ): ScriptureEntry => {
+            if (typeof s === "string") return { reference: s, text: "" };
+            return { reference: s.reference, text: s.text ?? "" };
+          },
+        ),
       );
       setKeyPeople(data.keyPeople || []);
       setKeyPhrases(data.keyPhrases || []);

@@ -5,6 +5,8 @@ import { useGameSession } from "@/hooks/useGameSession";
 import type { GameProps } from "@/app/(dashboard)/games/[slug]/page";
 import Confetti from "@/components/Confetti";
 import { getIconForConcept } from "@/components/icons/BibleIcons";
+import { fetchCatalogWords } from "@/lib/game-vocab";
+import { useSessionWordHistory } from "@/hooks/useSessionWordHistory";
 
 type Props = GameProps;
 
@@ -41,14 +43,6 @@ const DEFAULT_WORDS: WordEntry[] = [
 const DEFAULT_MAX_WRONG = 6;
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
-function shuffleArray<T>(arr: T[]): T[] {
-  const shuffled = [...arr];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
-}
 
 /* ------------------------------------------------------------------ */
 /*  Canvas drawing helpers                                             */
@@ -189,6 +183,11 @@ export default function Hangman({ gameId, userId, contentPack, ageGroup }: Props
   // Word pool
   const [wordPool, setWordPool] = useState<WordEntry[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  // Shared catalog pool, fetched once on mount. Used only when the
+  // game is played without a content pack, so the hardcoded
+  // DEFAULT_WORDS list isn't the full universe of standalone play.
+  const [catalogPool, setCatalogPool] = useState<string[]>([]);
+  const history = useSessionWordHistory("hangman");
 
   // Round state
   const [guessedLetters, setGuessedLetters] = useState<Set<string>>(new Set());
@@ -208,7 +207,23 @@ export default function Hangman({ gameId, userId, contentPack, ageGroup }: Props
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDarkRef = useRef(false);
 
-  // Build word pool from contentPack or defaults
+  // Fetch a wider standalone-play pool from the shared VocabularyTerm
+  // catalog once on mount. If a content pack is attached we never use
+  // this pool, but reading it unconditionally keeps the fetch out of
+  // the hot path and shields the game from render-order edge cases.
+  useEffect(() => {
+    let cancelled = false;
+    fetchCatalogWords({ type: "WORD", limit: 150, minLen: 3, maxLen: 12 })
+      .then((words) => {
+        if (!cancelled) setCatalogPool(words);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Build word pool from contentPack, catalog, or defaults.
   const buildWordPool = useCallback((): WordEntry[] => {
     let pool: WordEntry[];
     if (
@@ -226,6 +241,13 @@ export default function Hangman({ gameId, userId, contentPack, ageGroup }: Props
         word: word.toUpperCase().replace(/[^A-Z]/g, ""),
         hint: hints[i % Math.max(hints.length, 1)] ?? "Bible vocabulary",
       }));
+    } else if (catalogPool.length >= 10) {
+      // Standalone play — pull from the full shared catalog. Hints are
+      // generic since the catalog entries don't carry per-word hints.
+      pool = catalogPool.map((word) => ({
+        word: word.toUpperCase().replace(/[^A-Z]/g, ""),
+        hint: "Bible vocabulary",
+      }));
     } else {
       pool = [...DEFAULT_WORDS];
     }
@@ -239,8 +261,8 @@ export default function Hangman({ gameId, userId, contentPack, ageGroup }: Props
       if (long.length >= 3) pool = long;
     }
 
-    return pool;
-  }, [contentPack, difficulty]);
+    return pool.filter((w) => w.word.length >= 3);
+  }, [contentPack, difficulty, catalogPool]);
 
   // Detect dark mode for canvas
   useEffect(() => {
@@ -345,7 +367,25 @@ export default function Hangman({ gameId, userId, contentPack, ageGroup }: Props
 
   // Start the game session
   const startGame = useCallback(async () => {
-    const pool = shuffleArray(buildWordPool());
+    const fullPool = buildWordPool();
+    // Pick a session-sized slice that avoids words played in prior
+    // local sessions (localStorage-backed). When the whole pool has
+    // been exhausted the history resets automatically so play
+    // continues indefinitely.
+    const SESSION_SIZE = 10;
+    const freshWords = history.pickFresh(
+      fullPool.map((e) => e.word),
+      Math.min(SESSION_SIZE, fullPool.length),
+    );
+    const byWord = new Map(fullPool.map((e) => [e.word.toUpperCase(), e]));
+    const pool = freshWords.map(
+      (w) =>
+        byWord.get(w.toUpperCase()) ?? {
+          word: w.toUpperCase().replace(/[^A-Z]/g, ""),
+          hint: "Bible vocabulary",
+        },
+    );
+    history.markUsed(freshWords);
     setWordPool(pool);
     setCurrentIndex(0);
     setGuessedLetters(new Set());
@@ -359,7 +399,7 @@ export default function Hangman({ gameId, userId, contentPack, ageGroup }: Props
     setShowHint(false);
     setShowConfetti(false);
     await startSession();
-  }, [startSession, buildWordPool]);
+  }, [startSession, buildWordPool, history]);
 
   // Move to next word
   const nextWord = useCallback(() => {

@@ -88,9 +88,16 @@ export default function NameThatScripture({ gameId, userId, contentPack, ageGrou
   const numOptions = difficulty === "easy" ? 3 : difficulty === "hard" ? 5 : 4;
 
   const startGame = useCallback(async () => {
+    // Entries whose text didn't resolve from the BibleVerse catalog
+    // would render as blank clue cards; strip them before deciding
+    // whether the pack has enough to use at all.
+    const packScriptures =
+      contentPack?.scriptures?.filter(
+        (s) => typeof s.text === "string" && s.text.trim().length > 0,
+      ) ?? [];
     const scriptures =
-      contentPack?.scriptures && contentPack.scriptures.length > 0
-        ? contentPack.scriptures
+      packScriptures.length > 0
+        ? packScriptures
         : SCRIPTURE_PAIRS.map((p) => ({ reference: p.reference, text: p.text }));
 
     const newRounds = generateRounds(scriptures, totalRounds, numOptions);
