@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db";
 import { z } from "zod";
 import { questionSchema, oclmSectionSchema } from "./_schemas";
 import { ingestPackVocabulary } from "@/lib/vocabulary-ingest";
+import { fillScriptureTexts } from "@/lib/bible-verses";
+import type { Prisma } from "@prisma/client";
 
 const createSchema = z.object({
   title: z.string().min(1),
@@ -78,6 +80,12 @@ export async function POST(req: Request) {
 
   const { generateInstances, ...data } = parsed.data;
 
+  // Dedupe + fill scripture text from the BibleVerse catalog BEFORE the
+  // snapshot lands in the DB. One central call covers every import
+  // pipeline (WOL, OCLM, Daily Text, manual admin entry) — any entry
+  // that already has text wins; empty ones are filled verbatim.
+  const filledScriptures = await fillScriptureTexts(prisma, data.scriptures);
+
   const contentPack = await prisma.contentPack.create({
     data: {
       title: data.title,
@@ -85,7 +93,7 @@ export async function POST(req: Request) {
       context: data.context,
       sourceText: data.sourceText,
       vocabulary: data.vocabulary,
-      scriptures: data.scriptures,
+      scriptures: filledScriptures as unknown as Prisma.InputJsonValue,
       keyPeople: data.keyPeople,
       themes: data.themes,
       questions: data.questions,
@@ -136,7 +144,7 @@ export async function POST(req: Request) {
     const seedingData = {
       source: data.source,
       vocabulary: data.vocabulary,
-      scriptures: data.scriptures,
+      scriptures: filledScriptures,
       questions: data.questions,
       keyPeople: data.keyPeople,
       keyPhrases:

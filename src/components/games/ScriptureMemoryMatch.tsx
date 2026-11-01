@@ -54,10 +54,18 @@ export default function ScriptureMemoryMatch({ gameId, userId, contentPack }: Pr
     async (count: PairCount) => {
       setPairCount(count);
 
-      // Use content pack scriptures if available, otherwise use defaults
+      // Use content pack scriptures if we have enough with real text. An
+      // import that didn't resolve to the BibleVerse catalog can leave
+      // text empty — those entries would surface as blank cards, so we
+      // filter them out before deciding whether to use the pack or fall
+      // back to the bundled defaults.
+      const packPairs =
+        contentPack?.scriptures?.filter(
+          (s) => typeof s.text === "string" && s.text.trim().length > 0,
+        ) ?? [];
       let pairs: ScripturePair[];
-      if (contentPack?.scriptures && contentPack.scriptures.length >= count) {
-        const shuffled = [...contentPack.scriptures].sort(() => Math.random() - 0.5);
+      if (packPairs.length >= count) {
+        const shuffled = [...packPairs].sort(() => Math.random() - 0.5);
         pairs = shuffled.slice(0, count);
       } else {
         pairs = getRandomPairs(count);

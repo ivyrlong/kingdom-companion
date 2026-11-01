@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { importPackFromWolUrl } from "@/lib/wol-import";
+import { prisma } from "@/lib/db";
+import { fillScriptureTexts } from "@/lib/bible-verses";
 
 /**
  * POST /api/admin/wol-import
@@ -36,6 +38,26 @@ export async function POST(req: Request) {
 
   try {
     const result = await importPackFromWolUrl(url.trim());
+
+    // Fill scripture text from the local BibleVerse catalog BEFORE the
+    // DraftPack is handed to the admin UI, so the preview shows the
+    // verbatim NWT text ready for review/edit — not empty text boxes.
+    // The dedupe step also collapses variant spellings of the same
+    // reference ("Prov. 22:4" / "Proverbs 22:4") so the Scriptures
+    // panel doesn't repeat citations.
+    try {
+      const filled = await fillScriptureTexts(prisma, result.pack.scriptures);
+      result.pack.scriptures = filled;
+    } catch (fillErr) {
+      // Don't fail the import just because the catalog is missing a
+      // book — the admin can still paste text manually and the save
+      // path will retry the fill.
+      console.error(
+        "[wol-import] scripture fill failed:",
+        fillErr instanceof Error ? fillErr.message : fillErr,
+      );
+    }
+
     return NextResponse.json(result);
   } catch (e) {
     const message = e instanceof Error ? e.message : "Import failed";

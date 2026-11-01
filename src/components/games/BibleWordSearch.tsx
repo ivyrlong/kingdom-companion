@@ -6,6 +6,8 @@ import type { GameProps } from "@/app/(dashboard)/games/[slug]/page";
 import Confetti from "@/components/Confetti";
 import { getIconForConcept } from "@/components/icons/BibleIcons";
 import { useEncyclopedia } from "@/components/encyclopedia/EncyclopediaProvider";
+import { fetchCatalogWords } from "@/lib/game-vocab";
+import { useSessionWordHistory } from "@/hooks/useSessionWordHistory";
 
 type Props = GameProps;
 
@@ -126,6 +128,23 @@ export default function BibleWordSearch({ gameId, userId, contentPack, ageGroup 
   const [timeElapsed, setTimeElapsed] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
+  // Shared VocabularyTerm catalog fetched once on mount — used for
+  // standalone play when no content pack is attached. Lets the no-pack
+  // path draw on hundreds of terms instead of the DEFAULT_WORDS 15.
+  const [catalogPool, setCatalogPool] = useState<string[]>([]);
+  const history = useSessionWordHistory("bible-word-search");
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchCatalogWords({ type: "WORD", limit: 200, minLen: 3, maxLen: 12 })
+      .then((words) => {
+        if (!cancelled) setCatalogPool(words);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const startGame = useCallback(async () => {
     const difficulty = getDifficulty(ageGroup);
@@ -133,19 +152,29 @@ export default function BibleWordSearch({ gameId, userId, contentPack, ageGroup 
     const minGridSize = difficulty === "easy" ? 8 : difficulty === "hard" ? 12 : 10;
     const maxWordLength = difficulty === "easy" ? 6 : Infinity;
 
-    let pool =
-      contentPack?.vocabulary && contentPack.vocabulary.length >= 5
-        ? contentPack.vocabulary
-        : [...DEFAULT_WORDS];
-
-    // For easy mode, prefer shorter words
-    if (maxWordLength < Infinity) {
-      pool = pool.filter((w) => w.replace(/[^A-Za-z]/g, "").length <= maxWordLength).length >= wordCount
-        ? pool.filter((w) => w.replace(/[^A-Za-z]/g, "").length <= maxWordLength)
-        : pool;
+    let pool: string[];
+    if (contentPack?.vocabulary && contentPack.vocabulary.length >= 5) {
+      pool = [...contentPack.vocabulary];
+    } else if (catalogPool.length >= wordCount) {
+      pool = [...catalogPool];
+    } else {
+      pool = [...DEFAULT_WORDS];
     }
 
-    const words = pool.slice(0, wordCount);
+    // For easy mode, prefer shorter words — only narrow the pool if we
+    // still have enough short words to fill a puzzle.
+    if (maxWordLength < Infinity) {
+      const short = pool.filter(
+        (w) => w.replace(/[^A-Za-z]/g, "").length <= maxWordLength,
+      );
+      if (short.length >= wordCount) pool = short;
+    }
+
+    // Pick a fresh slice via localStorage-backed anti-repeat so the
+    // same puzzle doesn't recur between sessions. pickFresh shuffles
+    // internally, so no extra randomisation step is needed.
+    const words = history.pickFresh(pool, wordCount);
+    history.markUsed(words);
     const size = Math.max(minGridSize, Math.ceil(Math.sqrt(words.join("").length * 3)));
     const { grid: newGrid, placed } = generateGrid(words, size);
 
@@ -155,7 +184,7 @@ export default function BibleWordSearch({ gameId, userId, contentPack, ageGroup 
     setSelectedCells([]);
     setTimeElapsed(0);
     await startSession();
-  }, [startSession, contentPack, ageGroup]);
+  }, [startSession, contentPack, ageGroup, catalogPool, history]);
 
   useEffect(() => {
     if (status === "playing") {

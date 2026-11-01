@@ -610,3 +610,32 @@ model ParadisePage {
   @@index([userId])
   @@index([sceneId])
 }
+
+// ─── Bible Verses (NWT) ───────────────────────────────────────────────
+//
+// Verbatim NWT verse text, keyed by canonical Bible position. House rule
+// (see src/lib/scripture.ts): Bible text IS storable verbatim — only
+// publication prose is restricted. This table is the single source of
+// truth that fills `ContentPack.scriptures[i].text` and powers the
+// match-the-verse / name-that-scripture games.
+//
+// Populated once via scripts/ingest-nwt-bible.ts; the lookup helper
+// (src/lib/bible-verses.ts) resolves a ParsedScriptureRef into a span
+// of rows.
+model BibleVerse {
+  id          String @id @default(cuid())
+  translation String @default("NWT")
+  bookNumber  Int // 1..66, matches BIBLE_BOOKS[].number in src/lib/scripture.ts
+  chapter     Int
+  verse       Int
+  // Verbatim verse text with WOL's pronunciation marks preserved
+  // (middle-dot, stress accent). Callers that want a cleaner reading
+  // can strip them at display time.
+  text        String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([translation, bookNumber, chapter, verse])
+  @@index([bookNumber, chapter, verse])
+}

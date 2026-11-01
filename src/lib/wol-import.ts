@@ -67,8 +67,13 @@ export interface DraftPack {
    *  malformed attribution is worse than none. */
   attribution?: string;
   vocabulary: string[];
-  /** text intentionally empty — admin pastes their own NWT text or leaves blank. */
-  scriptures: Array<{ reference: string; text: "" }>;
+  /**
+   * Verbatim NWT text, filled by the admin import route from the
+   * BibleVerse catalog before the DraftPack reaches the UI. Entries
+   * whose reference wasn't in the catalog arrive with text:"" and the
+   * admin can paste text manually before publishing.
+   */
+  scriptures: Array<{ reference: string; text: string }>;
   keyPeople: string[];
   themes: string[];
   questions: DraftQuestion[];
@@ -597,7 +602,7 @@ async function parseAsWatchtower(
 
   const scriptures = allScriptureRefs.map((reference) => ({
     reference,
-    text: "" as const,
+    text: "",
   }));
 
   // Resolve title for attribution: prefer the article <h1>, fall back
@@ -720,8 +725,12 @@ export interface OclmDraftPack {
   /** Opening / middle / closing song numbers in source order. */
   songs: number[];
   sections: OclmDraftSection[];
-  /** All scripture citations seen anywhere in the meeting (deduped, ordered). */
-  scriptures: Array<{ reference: string; text: "" }>;
+  /**
+   * All scripture citations seen anywhere in the meeting (deduped,
+   * ordered). Filled with verbatim NWT text by the admin import route
+   * before the UI sees it; otherwise text:"".
+   */
+  scriptures: Array<{ reference: string; text: string }>;
   /** Derived single-word vocabulary, used to seed listening games. */
   vocabulary: string[];
   /** Bible-character matches across all part bodies. */
@@ -1126,7 +1135,7 @@ async function parseAsOclm(
 
   // Aggregate scripture citations across the whole meeting.
   const seenScrip = new Set<string>();
-  const scriptures: Array<{ reference: string; text: "" }> = [];
+  const scriptures: Array<{ reference: string; text: string }> = [];
   if (bibleReadingRef) {
     seenScrip.add(bibleReadingRef);
     scriptures.push({ reference: bibleReadingRef, text: "" });

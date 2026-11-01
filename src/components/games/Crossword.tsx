@@ -4,6 +4,8 @@ import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useGameSession } from "@/hooks/useGameSession";
 import type { GameProps } from "@/app/(dashboard)/games/[slug]/page";
 import Confetti from "@/components/Confetti";
+import { fetchCatalogWords } from "@/lib/game-vocab";
+import { useSessionWordHistory } from "@/hooks/useSessionWordHistory";
 
 type Props = GameProps;
 
@@ -392,23 +394,58 @@ export default function Crossword({ gameId, userId, contentPack, ageGroup }: Pro
   const difficulty = getDifficulty(ageGroup);
   const maxWords = difficulty === "easy" ? 5 : difficulty === "hard" ? 10 : 8;
 
+  // Shared VocabularyTerm catalog, fetched once on mount. Fuels
+  // standalone play (no content pack) so the pool is hundreds of
+  // terms, not the small WORD_BANKS slice.
+  const [catalogPool, setCatalogPool] = useState<string[]>([]);
+  const history = useSessionWordHistory("crossword");
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchCatalogWords({ type: "WORD", limit: 200, minLen: 3, maxLen: 10 })
+      .then((words) => {
+        if (!cancelled) setCatalogPool(words);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const wordDefs = useMemo<WordDef[]>(() => {
+    // Pack vocab wins; otherwise prefer the shared catalog; last
+    // resort is the hardcoded WORD_BANKS. The pickFresh step tracks
+    // per-game usage in localStorage so repeat puzzles don't recycle
+    // the same words.
+    let pool: string[];
     if (contentPack?.vocabulary && contentPack.vocabulary.length >= 4) {
-      return contentPack.vocabulary
-        .slice(0, maxWords)
-        .map((v) => {
-          const upper = v.toUpperCase().replace(/[^A-Z]/g, "");
-          return {
-            word: upper,
-            clue: generateSimpleClue(upper),
-          };
-        })
-        .filter((wd) => wd.word.length >= 2);
+      pool = contentPack.vocabulary.map((v) =>
+        v.toUpperCase().replace(/[^A-Z]/g, ""),
+      );
+    } else if (catalogPool.length >= maxWords) {
+      pool = catalogPool.map((v) => v.toUpperCase().replace(/[^A-Z]/g, ""));
+    } else {
+      const bank = WORD_BANKS[Math.floor(Math.random() * WORD_BANKS.length)];
+      // WORD_BANKS entries already carry curated clues — short-circuit
+      // the generic clue builder.
+      const shuffled = [...bank];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      return shuffled.slice(0, maxWords);
     }
-    // Pick a random built-in bank
-    const bank = WORD_BANKS[Math.floor(Math.random() * WORD_BANKS.length)];
-    return bank.slice(0, maxWords);
-  }, [contentPack, maxWords]);
+
+    const chosen = history.pickFresh(
+      pool.filter((w) => w.length >= 2),
+      maxWords,
+    );
+    history.markUsed(chosen);
+    return chosen.map((upper) => ({
+      word: upper,
+      clue: generateSimpleClue(upper),
+    }));
+  }, [contentPack, maxWords, catalogPool, history]);
 
   /* ── Start / timer ──────────────────────────────────────────────── */
 
