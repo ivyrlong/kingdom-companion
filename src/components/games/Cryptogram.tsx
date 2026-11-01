@@ -24,31 +24,32 @@ const DEFAULT_PHRASES = [
   "HAVE FAITH",
 ];
 
-/** Bible-themed emoji symbols used as cipher substitutes */
+/** Bible-themed emoji symbols used as cipher substitutes. 26 entries,
+ *  one per letter of the alphabet. No cross imagery (project rule). */
 const CIPHER_SYMBOLS = [
   "\u{1F4DC}", // scroll
   "\u{1F54A}", // dove
-  "\u2B50",    // star
-  "\u2764\uFE0F", // heart
-  "\u2720",    // cross (Maltese)
+  "⭐",    // star
+  "❤️", // heart
+  "\u{1F956}", // bread (loaves)
   "\u{1F30D}", // earth
   "\u{1F56F}", // candle
   "\u{1F3F5}", // rosette
-  "\u2618",    // shamrock / clover
-  "\u{1F54B}", // mosque (temple-like)
-  "\u2728",    // sparkles
+  "☘",    // shamrock / clover
+  "\u{1F54B}", // kaaba
+  "✨",    // sparkles
   "\u{1F30A}", // wave
   "\u{1F33F}", // herb
   "\u{1F33E}", // sheaf
   "\u{1F343}", // leaf
-  "\u26A1",    // lightning
+  "⚡",    // lightning
   "\u{1F31F}", // glowing star
-  "\u2600\uFE0F", // sun
+  "☀️", // sun
   "\u{1F308}", // rainbow
   "\u{1F3B6}", // musical notes
   "\u{1F3BA}", // trumpet
-  "\u{1F480}", // skull (not Bible-y, placeholder)
-  "\u{1F54C}", // mosque
+  "\u{1F410}", // goat
+  "\u{1F54C}", // temple
   "\u{1F3D4}", // mountain
   "\u{1F333}", // tree
   "\u{1F347}", // grapes
@@ -72,44 +73,88 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-/** Build a 1-to-1 mapping from each unique letter to a unique symbol */
-function buildCipher(phrase: string): Map<string, string> {
-  const letters = Array.from(
-    new Set(
-      phrase
-        .toUpperCase()
-        .split("")
-        .filter((ch) => /[A-Z]/.test(ch))
-    )
-  );
-  const pool = shuffle(CIPHER_SYMBOLS).slice(0, letters.length);
-  const map = new Map<string, string>();
-  letters.forEach((letter, i) => map.set(letter, pool[i]));
-  return map;
+/** Unique [A-Z] letters appearing in `phrase`, in sorted order. */
+function uniqueLettersOf(phrase: string): string[] {
+  return Array.from(
+    new Set(phrase.split("").filter((ch) => /[A-Z]/.test(ch)))
+  ).sort();
 }
 
-/** Gather phrases from a content pack or fall back to defaults */
-function gatherPhrases(
-  contentPack?: Props["contentPack"]
-): string[] {
+/**
+ * Verify that `cipher` is a complete 1-to-1 substitution mapping for
+ * every unique letter in `phrase`, and that encoding + decoding the
+ * phrase through the cipher roundtrips exactly back to itself.
+ * Returns an error description, or null when valid.
+ */
+function validatePuzzle(
+  phrase: string,
+  cipher: Map<string, string>
+): string | null {
+  const letters = phrase.split("").filter((ch) => /[A-Z]/.test(ch));
+  const unique = Array.from(new Set(letters));
+  if (cipher.size !== unique.length) {
+    return `cipher size ${cipher.size} != unique letters ${unique.length}`;
+  }
+  const usedSymbols = new Set<string>();
+  for (const l of unique) {
+    const s = cipher.get(l);
+    if (!s) return `no symbol for letter ${l}`;
+    if (usedSymbols.has(s)) return `symbol ${s} assigned to multiple letters`;
+    usedSymbols.add(s);
+  }
+  const inverse = new Map<string, string>();
+  cipher.forEach((s, l) => inverse.set(s, l));
+  for (const l of letters) {
+    const s = cipher.get(l)!;
+    if (inverse.get(s) !== l) return `roundtrip fail at letter ${l}`;
+  }
+  return null;
+}
+
+/**
+ * Build a validated 1-to-1 cipher mapping. Retries a few times in case
+ * a shuffle produces an invalid pool (shouldn't happen with distinct
+ * symbol entries, but the retry costs nothing and gives us a hard
+ * guarantee the puzzle shipped to the UI is well-formed).
+ */
+function buildCipher(phrase: string): Map<string, string> {
+  const letters = uniqueLettersOf(phrase);
+  if (letters.length > CIPHER_SYMBOLS.length) {
+    throw new Error(
+      `Cryptogram phrase has ${letters.length} unique letters, only ${CIPHER_SYMBOLS.length} cipher symbols available.`
+    );
+  }
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const pool = shuffle([...CIPHER_SYMBOLS]).slice(0, letters.length);
+    const map = new Map<string, string>();
+    letters.forEach((letter, i) => map.set(letter, pool[i]));
+    if (!validatePuzzle(phrase, map)) return map;
+  }
+  throw new Error("Cryptogram failed to build a valid cipher after 5 tries");
+}
+
+/** Gather phrases from a content pack or fall back to defaults. */
+function gatherPhrases(contentPack?: Props["contentPack"]): string[] {
   if (contentPack) {
     const phrases: string[] = [];
 
-    // Prefer keyPhrases
     if (contentPack.keyPhrases && contentPack.keyPhrases.length > 0) {
       phrases.push(
         ...contentPack.keyPhrases.map((p) => p.toUpperCase().trim())
       );
     }
 
-    // If we still need more, combine vocabulary words into short phrases
     if (
       phrases.length < MAX_ROUNDS &&
       contentPack.vocabulary &&
       contentPack.vocabulary.length >= 2
     ) {
       const vocab = shuffle(contentPack.vocabulary);
-      for (let i = 0; i + 1 < vocab.length && phrases.length < MAX_ROUNDS * 2; i += 2) {
+      for (
+        let i = 0;
+        i + 1 < vocab.length && phrases.length < MAX_ROUNDS * 2;
+        i += 2
+      ) {
         const combined = `${vocab[i]} ${vocab[i + 1]}`.toUpperCase().trim();
         if (combined.length >= 4 && combined.length <= 30) {
           phrases.push(combined);
@@ -117,7 +162,10 @@ function gatherPhrases(
       }
     }
 
-    if (phrases.length > 0) return shuffle(phrases);
+    const usable = phrases.filter(
+      (p) => uniqueLettersOf(p).length <= CIPHER_SYMBOLS.length
+    );
+    if (usable.length > 0) return shuffle(usable);
   }
 
   return shuffle(DEFAULT_PHRASES);
@@ -128,8 +176,9 @@ function gatherPhrases(
 /* ------------------------------------------------------------------ */
 
 interface HistoryEntry {
-  position: number; // index into phrase (letter-only positions)
-  letter: string;
+  symbol: string;
+  previousLetter: string; // "" if the symbol had no guess before
+  activePos: number | null;
 }
 
 export default function Cryptogram({ gameId, userId, contentPack }: GameProps) {
@@ -140,14 +189,18 @@ export default function Cryptogram({ gameId, userId, contentPack }: GameProps) {
   const [allPhrases, setAllPhrases] = useState<string[]>([]);
   const [roundIndex, setRoundIndex] = useState(0);
   const [cipher, setCipher] = useState<Map<string, string>>(new Map());
-  const [guesses, setGuesses] = useState<Map<number, string>>(new Map()); // posIndex -> letter
+  // Guesses keyed by cipher SYMBOL (not tile position) so every tile
+  // displaying a given symbol automatically shows the same guess.
+  const [symbolGuesses, setSymbolGuesses] = useState<Map<string, string>>(
+    new Map()
+  );
   const [activePos, setActivePos] = useState<number | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [hintsUsed, setHintsUsed] = useState(0);
   const [undosUsed, setUndosUsed] = useState(0);
   const [totalScore, setTotalScore] = useState(0);
-  const [shakingPos, setShakingPos] = useState<number | null>(null);
+  const [shakingSymbol, setShakingSymbol] = useState<string | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [roundComplete, setRoundComplete] = useState(false);
 
@@ -155,25 +208,10 @@ export default function Cryptogram({ gameId, userId, contentPack }: GameProps) {
 
   const phrase = allPhrases[roundIndex] ?? "";
 
-  /** Unique letters in the current phrase */
-  const uniqueLetters = useMemo(() => {
-    return Array.from(
-      new Set(
-        phrase
-          .split("")
-          .filter((ch) => /[A-Z]/.test(ch))
-      )
-    ).sort();
-  }, [phrase]);
+  /** Unique letters in the current phrase, sorted alphabetically. */
+  const uniqueLetters = useMemo(() => uniqueLettersOf(phrase), [phrase]);
 
-  /** Reverse map: symbol -> letter */
-  const symbolToLetter = useMemo(() => {
-    const m = new Map<string, string>();
-    cipher.forEach((sym, letter) => m.set(sym, letter));
-    return m;
-  }, [cipher]);
-
-  /** Array of letter-only positions (indices into phrase string that are letters) */
+  /** Phrase indices that hold a letter (used to drive tile layout). */
   const letterPositions = useMemo(() => {
     const positions: number[] = [];
     for (let i = 0; i < phrase.length; i++) {
@@ -182,15 +220,36 @@ export default function Cryptogram({ gameId, userId, contentPack }: GameProps) {
     return positions;
   }, [phrase]);
 
-  /** Check if the round is fully and correctly solved */
+  /** Reverse map: symbol -> letter (the ground-truth cipher inverse). */
+  const symbolToLetter = useMemo(() => {
+    const m = new Map<string, string>();
+    cipher.forEach((sym, letter) => m.set(sym, letter));
+    return m;
+  }, [cipher]);
+
+  /** Current displayed guess for a tile position. */
+  const guessAt = useCallback(
+    (posIdx: number): string | undefined => {
+      const letter = phrase[letterPositions[posIdx]];
+      if (!letter) return undefined;
+      const symbol = cipher.get(letter);
+      if (!symbol) return undefined;
+      return symbolGuesses.get(symbol);
+    },
+    [phrase, letterPositions, cipher, symbolGuesses]
+  );
+
+  /** Puzzle solved when every unique letter is mapped to itself via
+   *  its symbol guess. */
   const isSolved = useMemo(() => {
-    if (letterPositions.length === 0) return false;
-    for (let posIdx = 0; posIdx < letterPositions.length; posIdx++) {
-      const correctLetter = phrase[letterPositions[posIdx]];
-      if (guesses.get(posIdx) !== correctLetter) return false;
+    if (uniqueLetters.length === 0) return false;
+    for (const letter of uniqueLetters) {
+      const symbol = cipher.get(letter);
+      if (!symbol) return false;
+      if (symbolGuesses.get(symbol) !== letter) return false;
     }
     return true;
-  }, [letterPositions, guesses, phrase]);
+  }, [uniqueLetters, cipher, symbolGuesses]);
 
   // --- start game -----------------------------------------------
   const startGame = useCallback(async () => {
@@ -203,9 +262,8 @@ export default function Cryptogram({ gameId, userId, contentPack }: GameProps) {
     setShowConfetti(false);
 
     const firstPhrase = phrases[0] ?? DEFAULT_PHRASES[0];
-    const newCipher = buildCipher(firstPhrase);
-    setCipher(newCipher);
-    setGuesses(new Map());
+    setCipher(buildCipher(firstPhrase));
+    setSymbolGuesses(new Map());
     setActivePos(null);
     setHistory([]);
     setRoundComplete(false);
@@ -228,16 +286,14 @@ export default function Cryptogram({ gameId, userId, contentPack }: GameProps) {
     const nextRound = roundIndex + 1;
 
     if (nextRound >= MAX_ROUNDS || nextRound >= allPhrases.length) {
-      // Game over
       setShowConfetti(true);
       endSession(newTotal);
     } else {
-      // Short delay then next round
       setTimeout(() => {
         setRoundIndex(nextRound);
         const nextPhrase = allPhrases[nextRound];
         setCipher(buildCipher(nextPhrase));
-        setGuesses(new Map());
+        setSymbolGuesses(new Map());
         setActivePos(null);
         setHistory([]);
         setHintsUsed(0);
@@ -252,131 +308,192 @@ export default function Cryptogram({ gameId, userId, contentPack }: GameProps) {
   const handleBlankTap = useCallback(
     (posIdx: number) => {
       if (roundComplete) return;
-      // If the position is already correctly locked, ignore
-      const correctLetter = phrase[letterPositions[posIdx]];
-      if (guesses.get(posIdx) === correctLetter) return;
+      const correct = phrase[letterPositions[posIdx]];
+      if (guessAt(posIdx) === correct) return; // already locked in
 
       setActivePos(posIdx);
       setDrawerOpen(true);
     },
-    [roundComplete, phrase, letterPositions, guesses]
+    [roundComplete, guessAt, phrase, letterPositions]
   );
 
   const handleSymbolPick = useCallback(
-    (symbol: string) => {
+    (drawerSymbol: string) => {
       if (activePos === null) return;
 
-      const letterForSymbol = symbolToLetter.get(symbol);
-      if (!letterForSymbol) return;
+      const chosenLetter = symbolToLetter.get(drawerSymbol);
+      if (!chosenLetter) return;
 
       const correctLetter = phrase[letterPositions[activePos]];
+      const activeSymbol = cipher.get(correctLetter);
+      if (!activeSymbol) return;
 
-      // Push to history before changing
-      const prev = guesses.get(activePos);
+      // Record undo state for the active symbol.
+      const prev = symbolGuesses.get(activeSymbol) ?? "";
       setHistory((h) => [
         ...h,
-        { position: activePos, letter: prev ?? "" },
+        { symbol: activeSymbol, previousLetter: prev, activePos },
       ]);
 
-      const newGuesses = new Map(guesses);
-      newGuesses.set(activePos, letterForSymbol);
-      setGuesses(newGuesses);
+      // Reassign: assigning chosenLetter to activeSymbol updates every
+      // tile showing activeSymbol in one shot. Also clear chosenLetter
+      // from any other symbol it was previously bound to (one letter →
+      // one symbol).
+      const newGuesses = new Map(symbolGuesses);
+      for (const [sym, lt] of newGuesses) {
+        if (lt === chosenLetter && sym !== activeSymbol) {
+          newGuesses.delete(sym);
+        }
+      }
+      newGuesses.set(activeSymbol, chosenLetter);
+      setSymbolGuesses(newGuesses);
 
-      if (letterForSymbol !== correctLetter) {
-        // Wrong guess — shake
-        setShakingPos(activePos);
+      if (chosenLetter !== correctLetter) {
+        setShakingSymbol(activeSymbol);
         if (shakeTimerRef.current) clearTimeout(shakeTimerRef.current);
-        shakeTimerRef.current = setTimeout(() => setShakingPos(null), 500);
+        shakeTimerRef.current = setTimeout(() => setShakingSymbol(null), 500);
       }
 
-      // Auto-advance to the next unfilled blank
-      const nextPos = findNextEmptyPos(activePos, newGuesses, letterPositions, phrase);
+      // Advance to the next tile whose symbol still isn't correct;
+      // skip tiles sharing a symbol with the one we just picked for.
+      const nextPos = findNextEmptyPos(
+        activePos,
+        newGuesses,
+        letterPositions,
+        phrase,
+        cipher
+      );
       setActivePos(nextPos);
       if (nextPos === null) setDrawerOpen(false);
     },
-    [activePos, symbolToLetter, phrase, letterPositions, guesses]
+    [
+      activePos,
+      symbolToLetter,
+      phrase,
+      letterPositions,
+      cipher,
+      symbolGuesses,
+    ]
   );
 
   const handleUndo = useCallback(() => {
     if (history.length === 0) return;
     const last = history[history.length - 1];
-    const newGuesses = new Map(guesses);
+    const newGuesses = new Map(symbolGuesses);
 
-    if (last.letter) {
-      newGuesses.set(last.position, last.letter);
+    if (last.previousLetter) {
+      newGuesses.set(last.symbol, last.previousLetter);
     } else {
-      newGuesses.delete(last.position);
+      newGuesses.delete(last.symbol);
     }
 
-    setGuesses(newGuesses);
+    setSymbolGuesses(newGuesses);
     setHistory((h) => h.slice(0, -1));
     setUndosUsed((u) => u + 1);
-    setActivePos(last.position);
-  }, [history, guesses]);
+    setActivePos(last.activePos);
+  }, [history, symbolGuesses]);
 
   const handleHint = useCallback(() => {
-    // Reveal a random unsolved position
-    const unsolved = letterPositions
-      .map((_, posIdx) => posIdx)
-      .filter((posIdx) => guesses.get(posIdx) !== phrase[letterPositions[posIdx]]);
+    // Reveal one still-unrevealed letter by assigning its correct
+    // letter to its cipher symbol — updates every tile with that
+    // symbol in one shot.
+    const candidates = uniqueLetters.filter((letter) => {
+      const symbol = cipher.get(letter);
+      return symbol ? symbolGuesses.get(symbol) !== letter : false;
+    });
+    if (candidates.length === 0) return;
 
-    if (unsolved.length === 0) return;
+    const pickLetter =
+      candidates[Math.floor(Math.random() * candidates.length)];
+    const pickSymbol = cipher.get(pickLetter);
+    if (!pickSymbol) return;
 
-    const pick = unsolved[Math.floor(Math.random() * unsolved.length)];
-    const correctLetter = phrase[letterPositions[pick]];
+    const prev = symbolGuesses.get(pickSymbol) ?? "";
+    setHistory((h) => [
+      ...h,
+      { symbol: pickSymbol, previousLetter: prev, activePos },
+    ]);
 
-    const prev = guesses.get(pick);
-    setHistory((h) => [...h, { position: pick, letter: prev ?? "" }]);
-
-    const newGuesses = new Map(guesses);
-    newGuesses.set(pick, correctLetter);
-    setGuesses(newGuesses);
+    const newGuesses = new Map(symbolGuesses);
+    // Clear this letter if currently (incorrectly) assigned elsewhere.
+    for (const [sym, lt] of newGuesses) {
+      if (lt === pickLetter && sym !== pickSymbol) {
+        newGuesses.delete(sym);
+      }
+    }
+    newGuesses.set(pickSymbol, pickLetter);
+    setSymbolGuesses(newGuesses);
     setHintsUsed((h) => h + 1);
-  }, [letterPositions, guesses, phrase]);
+  }, [uniqueLetters, cipher, symbolGuesses, activePos]);
 
   // --- render helpers -------------------------------------------
   const renderPhrase = () => {
-    const words: { chars: { phraseIdx: number; posIdx: number; ch: string }[] }[] = [];
-    let currentWord: { phraseIdx: number; posIdx: number; ch: string }[] = [];
+    // Walk the phrase once, grouping into words. Letters become
+    // tappable tiles; punctuation/digits/other non-letters render as
+    // static glyphs so the word keeps its visual shape without
+    // producing phantom tiles that break the N-letter structure.
+    type Cell =
+      | { kind: "tile"; phraseIdx: number; posIdx: number; letter: string }
+      | { kind: "punct"; phraseIdx: number; ch: string };
+
+    const words: Cell[][] = [];
+    let currentWord: Cell[] = [];
     let posCounter = 0;
 
     for (let i = 0; i < phrase.length; i++) {
       const ch = phrase[i];
       if (ch === " ") {
         if (currentWord.length > 0) {
-          words.push({ chars: currentWord });
+          words.push(currentWord);
           currentWord = [];
         }
-      } else {
-        currentWord.push({ phraseIdx: i, posIdx: posCounter, ch });
+      } else if (/[A-Z]/.test(ch)) {
+        currentWord.push({
+          kind: "tile",
+          phraseIdx: i,
+          posIdx: posCounter,
+          letter: ch,
+        });
         posCounter++;
+      } else {
+        currentWord.push({ kind: "punct", phraseIdx: i, ch });
       }
     }
-    if (currentWord.length > 0) words.push({ chars: currentWord });
+    if (currentWord.length > 0) words.push(currentWord);
 
     return (
       <div className="flex flex-wrap justify-center gap-x-4 gap-y-3 sm:gap-x-6 sm:gap-y-4">
         {words.map((word, wIdx) => (
-          <div key={wIdx} className="flex gap-0.5 sm:gap-1">
-            {word.chars.map(({ posIdx, ch }) => {
-              const guessedLetter = guesses.get(posIdx);
-              const correctLetter = ch;
+          <div key={wIdx} className="flex items-end gap-0.5 sm:gap-1">
+            {word.map((cell) => {
+              if (cell.kind === "punct") {
+                return (
+                  <span
+                    key={`p-${cell.phraseIdx}`}
+                    className="h-14 sm:h-16 flex items-end pb-1 text-xl sm:text-2xl font-bold text-zinc-500 dark:text-zinc-400 select-none"
+                  >
+                    {cell.ch}
+                  </span>
+                );
+              }
+              const { posIdx, letter: correctLetter } = cell;
+              const guessedLetter = guessAt(posIdx);
               const isCorrect = guessedLetter === correctLetter;
               const isActive = activePos === posIdx;
-              const isShaking = shakingPos === posIdx;
               const symbol = cipher.get(correctLetter) ?? "?";
+              const isShaking = shakingSymbol === symbol;
 
               return (
                 <button
-                  key={posIdx}
+                  key={`t-${posIdx}`}
                   onClick={() => handleBlankTap(posIdx)}
-                  disabled={isCorrect && guessedLetter !== undefined}
+                  disabled={isCorrect}
                   className={`
                     relative flex flex-col items-center justify-end
                     w-8 h-14 sm:w-10 sm:h-16
                     rounded-lg border-2 transition-all duration-150
                     ${
-                      isCorrect && guessedLetter !== undefined
+                      isCorrect
                         ? "border-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 dark:border-emerald-600"
                         : isActive
                           ? "border-coral-500 bg-coral-50 dark:bg-coral-950/30 dark:border-coral-400 ring-2 ring-coral-300 dark:ring-coral-700"
@@ -385,14 +502,12 @@ export default function Cryptogram({ gameId, userId, contentPack }: GameProps) {
                     ${isShaking ? "animate-shake" : ""}
                   `}
                 >
-                  {/* Symbol at the top */}
                   <span className="text-xs sm:text-sm leading-none mt-1 select-none">
                     {symbol}
                   </span>
-                  {/* Letter guess or underscore */}
                   <span
                     className={`text-base sm:text-lg font-bold mb-1 ${
-                      isCorrect && guessedLetter
+                      isCorrect
                         ? "text-emerald-600 dark:text-emerald-400"
                         : guessedLetter
                           ? "text-coral-600 dark:text-coral-400"
@@ -418,8 +533,8 @@ export default function Cryptogram({ gameId, userId, contentPack }: GameProps) {
           Cryptogram
         </h1>
         <p className="text-zinc-500 dark:text-zinc-400 mb-8 max-w-md mx-auto">
-          Each letter has been replaced by a symbol. Crack the code and reveal the hidden
-          Bible phrase!
+          Each letter has been replaced by a symbol. Crack the code and reveal
+          the hidden Bible phrase!
         </p>
         <button
           onClick={startGame}
@@ -477,9 +592,11 @@ export default function Cryptogram({ gameId, userId, contentPack }: GameProps) {
   }
 
   /* ---------- playing screen ---------- */
-  const solvedCount = letterPositions.filter(
-    (_, posIdx) => guesses.get(posIdx) === phrase[letterPositions[posIdx]]
-  ).length;
+  const solvedCount = uniqueLetters.filter((l) => {
+    const s = cipher.get(l);
+    return s ? symbolGuesses.get(s) === l : false;
+  }).length;
+  const totalUnique = uniqueLetters.length;
 
   return (
     <div className="flex flex-col min-h-[calc(100dvh-10rem)]">
@@ -503,11 +620,7 @@ export default function Cryptogram({ gameId, userId, contentPack }: GameProps) {
         <div
           className="bg-coral-500 h-2 rounded-full transition-all duration-300"
           style={{
-            width: `${
-              letterPositions.length > 0
-                ? (solvedCount / letterPositions.length) * 100
-                : 0
-            }%`,
+            width: `${totalUnique > 0 ? (solvedCount / totalUnique) * 100 : 0}%`,
           }}
         />
       </div>
@@ -566,13 +679,7 @@ export default function Cryptogram({ gameId, userId, contentPack }: GameProps) {
             {uniqueLetters.map((letter) => {
               const symbol = cipher.get(letter);
               if (!symbol) return null;
-
-              // Has this symbol been correctly placed somewhere?
-              const isRevealed = letterPositions.some(
-                (_, posIdx) =>
-                  guesses.get(posIdx) === letter &&
-                  phrase[letterPositions[posIdx]] === letter
-              );
+              const isRevealed = symbolGuesses.get(symbol) === letter;
 
               return (
                 <button
@@ -603,26 +710,35 @@ export default function Cryptogram({ gameId, userId, contentPack }: GameProps) {
           </div>
         </div>
       </div>
-
     </div>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/*  Utility: find the next empty (unsolved) position after `current`   */
+/*  Utility: find the next tile whose symbol isn't yet correctly       */
+/*  resolved, skipping tiles that share a symbol with `current` (all   */
+/*  such tiles already display the same guess).                        */
 /* ------------------------------------------------------------------ */
 
 function findNextEmptyPos(
   current: number,
-  guessMap: Map<number, string>,
+  symbolGuesses: Map<string, string>,
   letterPositions: number[],
-  phrase: string
+  phrase: string,
+  cipher: Map<string, string>
 ): number | null {
   const total = letterPositions.length;
-  for (let offset = 1; offset < total; offset++) {
+  if (total === 0) return null;
+  const currentLetter = phrase[letterPositions[current]];
+  const currentSymbol = cipher.get(currentLetter);
+
+  for (let offset = 1; offset <= total; offset++) {
     const idx = (current + offset) % total;
     const correctLetter = phrase[letterPositions[idx]];
-    if (guessMap.get(idx) !== correctLetter) return idx;
+    const symbol = cipher.get(correctLetter);
+    if (!symbol) continue;
+    if (symbol === currentSymbol) continue;
+    if (symbolGuesses.get(symbol) !== correctLetter) return idx;
   }
   return null;
 }
